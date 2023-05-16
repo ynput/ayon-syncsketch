@@ -9,10 +9,10 @@ from .publish_plugins import (
 
 
 class ServerListSubmodel(BaseSettingsModel):
-    _layout = "compact"
-    name: str = Field(title="Name")
-    value: str = Field(title="Value")
     active: bool = Field(title="Active")
+    name: str = Field(title="Name")
+    url: str = Field(title="Value")
+    auth_token: str = Field(title="Auth Token")
 
 
 class SyncsketchSettings(BaseSettingsModel):
@@ -37,8 +37,9 @@ DEFAULT_VALUES = {
     "syncsketch_server_urls": [
         {
             "name": "default",
-            "value": "http://studio.syncsketch.com",
-            "active": True
+            "url": "http://studio.syncsketch.com",
+            "active": True,
+            "auth_token": ""
         }
     ],
     "publish": DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS
