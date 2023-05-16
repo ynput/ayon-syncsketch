@@ -1,11 +1,11 @@
 # SyncSketch integration for Ayon
+Text about main outline of the integration.
+
+## Milestones
+some action items for the integration
 
 ## Server
-
-## Desktop application
-
+Some text about configuration of settings
 
 ## Services
-
-
-# Usage
+Some text about synchronization process between SyncSketch to Ayon and forward comments to Ftrack
