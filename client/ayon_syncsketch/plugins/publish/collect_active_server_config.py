@@ -4,7 +4,7 @@ import pyblish.api
 
 
 class CollectActiveServerConfig(pyblish.api.ContextPlugin):
-    """Collect active SyncSketch server url from settings."""
+    """Collect active SyncSketch server config from settings."""
 
     order = pyblish.api.CollectorOrder
     label = "Active SyncSketch Server"
@@ -20,9 +20,8 @@ class CollectActiveServerConfig(pyblish.api.ContextPlugin):
             raise AssertionError("Ayon SyncSketch module not found.")
 
         # get first active syncsketch server url from settings
-        self.log.debug(syncsketch_module.syncsketch_server_urls)
         server_config = None
-        for item in syncsketch_module.syncsketch_server_urls:
+        for item in syncsketch_module.syncsketch_server_configs:
             if item["active"]:
                 server_config = item
                 break

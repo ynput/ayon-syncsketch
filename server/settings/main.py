@@ -17,9 +17,9 @@ class ServerListSubmodel(BaseSettingsModel):
 
 class SyncsketchSettings(BaseSettingsModel):
 
-    syncsketch_server_urls:  list[ServerListSubmodel] = Field(
+    syncsketch_server_configs:  list[ServerListSubmodel] = Field(
         default_factory=list,
-        title="SyncSketch server URLs",
+        title="SyncSketch server configs",
     )
 
     publish: PublishPluginsModel = Field(
@@ -27,14 +27,14 @@ class SyncsketchSettings(BaseSettingsModel):
         title="Publish Plugins",
     )
 
-    @validator("syncsketch_server_urls")
+    @validator("syncsketch_server_configs")
     def validate_unique_names(cls, value):
         ensure_unique_names(value)
         return value
 
 
 DEFAULT_VALUES = {
-    "syncsketch_server_urls": [
+    "syncsketch_server_configs": [
         {
             "name": "default",
             "url": "http://studio.syncsketch.com",
