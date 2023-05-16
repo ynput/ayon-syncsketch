@@ -18,7 +18,6 @@ if available.
 Package contains server side files directly,
 client side code zipped in `private` subfolder.
 """
-
 import os
 import sys
 import re
@@ -28,12 +27,11 @@ import logging
 import collections
 import zipfile
 
+
 # Name of addon
-#   - e.g. 'maya'
-ADDON_NAME = ""
+ADDON_NAME = "syncsketch"
 # Name of folder where client code is located to copy 'version.py'
-#   - e.g. 'ayon_maya'
-ADDON_CLIENT_DIR = ""
+ADDON_CLIENT_DIR = "ayon_syncsketch"
 
 # Patterns of directories to be skipped for server part of addon
 IGNORE_DIR_PATTERNS = [
