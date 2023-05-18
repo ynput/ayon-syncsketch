@@ -1,9 +1,5 @@
-from .syncsketch_module import (
-    SyncsketchIntegrationModule,
-    SYNCSKETCH_MODULE_DIR
+from .addon import (
+    SyncsketchAddon,
 )
 
-__all__ = (
-    "SyncsketchIntegrationModule",
-    "SYNCSKETCH_MODULE_DIR"
-)
+__all__ = ("SyncsketchAddon",)
