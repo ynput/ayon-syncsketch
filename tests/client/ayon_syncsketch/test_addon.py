@@ -1,4 +1,3 @@
-from multiprocessing import managers
 import pytest
 import ayon_start
 from openpype.modules import ModulesManager
@@ -38,4 +37,5 @@ class TestSyncsketchAddon:
 
         with pytest.raises(RuntimeError):
             syncsketch_addon.get_syncsketch_project_active_config(
-                mock_settings)
+                mock_settings
+            )

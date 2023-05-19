@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def set_environment():
     ayon_root = os.getenv("AYON_ROOT")
     if ayon_root:
