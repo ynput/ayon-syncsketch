@@ -39,7 +39,7 @@ class TestSyncsketchAddon(BaseTest):
 
         yield plugin
 
-    def test_active_server_collector(self, context, plugin):
+    def test_active_server_collector_one_active(self, context, plugin):
         context.data["project_settings"] = {
             "syncsketch": {
                 "syncsketch_server_configs": [
@@ -51,3 +51,17 @@ class TestSyncsketchAddon(BaseTest):
         }
         plugin.process(context)
         assert context.data.get("syncsketchServerConfig")["name"] == "config2"
+
+    def test_active_server_collector_none_active(self, context, plugin):
+        context.data["project_settings"] = {
+            "syncsketch": {
+                "syncsketch_server_configs": [
+                    {"name": "config1", "active": False},
+                    {"name": "config2", "active": False},
+                    {"name": "config3", "active": False}
+                ]
+            }
+        }
+
+        with pytest.raises(RuntimeError):
+            plugin.process(context)
