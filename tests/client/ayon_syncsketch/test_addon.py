@@ -1,11 +1,10 @@
 import pytest
-import ayon_start
-from openpype.modules import ModulesManager
+from tests.lib import BaseTest
 
 
-class TestSyncsketchAddon:
+class TestSyncsketchAddon(BaseTest):
 
-    def test_get_syncsketch_project_active_config(self):
+    def test_get_syncsketch_project_active_config(self, ayon_module_manager):
         mock_settings = {
             "syncsketch": {
                 "syncsketch_server_configs": [
@@ -15,7 +14,7 @@ class TestSyncsketchAddon:
                 ]
             }
         }
-        manager = ModulesManager()
+        manager = ayon_module_manager()
         syncsketch_addon = manager["syncsketch"]
 
         # Test return value for active config
