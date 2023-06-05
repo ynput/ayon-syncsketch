@@ -42,3 +42,20 @@ class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
                 os.path.join(SYNCSKETCH_MODULE_DIR, "plugins", "publish")
             ]
         }
+
+    def get_publish_plugin_paths(self, host_name):
+        """Receive publish plugin paths.
+
+        Give addons ability to add publish plugin paths based on host name.
+
+        Notes:
+           Default implementation uses 'get_plugin_paths' and always return
+               all publish plugin paths.
+
+        Args:
+           host_name (str): For which host are the plugins meant.
+        """
+        if host_name != "syncsketch":
+            return []
+
+        return self._get_plugin_paths_by_type("publish")
