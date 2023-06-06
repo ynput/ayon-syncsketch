@@ -25,14 +25,16 @@ class TestPublishValidateServerConnection(PublishTest):
             "syncsketchServerConfig": {
                 "name": "testing",
                 "active": True,
-                "url": "http://test.com"
+                "url": "http://test.com",
+                "auth_user": "test",
+                "auth_token": "test"
             }
         })
 
         yield context
 
     def test_get_json(self, mock_server, mock_context, plugin):
-        url = 'http://test.com'
+        url = 'http://test.com/api/v1/person/connected/'
         mock_server.add(responses.GET, url, json={'key': 'value'}, status=200)
         plugin.process(mock_context)
 
