@@ -37,7 +37,7 @@ DEFAULT_VALUES = {
     "syncsketch_server_configs": [
         {
             "name": "default",
-            "url": "http://studio.syncsketch.com",
+            "url": "https://www.syncsketch.com",
             "active": True,
             "auth_token": ""
         }
