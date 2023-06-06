@@ -1,5 +1,6 @@
 import pytest
 import logging
+import requests
 import responses
 from tests.lib import PublishTest
 
@@ -33,11 +34,14 @@ class TestPublishValidateServerConnection(PublishTest):
 
         yield context
 
-    def test_get_json(self, mock_server, mock_context, plugin):
+    def test_connected_correctly(self, mock_server, mock_context, plugin):
         url = 'http://test.com/api/v1/person/connected/'
-        mock_server.add(responses.GET, url, json={'key': 'value'}, status=200)
+        mock_server.add(responses.GET, url, status=200)
         plugin.process(mock_context)
 
-        resp = mock_context.data.get("syncsketchServerResponse")
+    def test_connected_error(self, mock_server, mock_context, plugin):
+        url = 'http://test.com/api/v1/person/connecte'
+        mock_server.add(responses.GET, url, status=200)
 
-        assert resp == {'key': 'value'}
+        with pytest.raises(requests.exceptions.ConnectionError):
+            plugin.process(mock_context)

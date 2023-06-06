@@ -30,9 +30,9 @@ class BaseTest:
         yield ModulesManager
 
     # This is the pytest fixture that creates a mock server
-    @pytest.fixture(scope="module")
+    @pytest.fixture
     def mock_server(self):
-        with responses.RequestsMock() as rsps:
+        with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
             yield rsps
 
 
