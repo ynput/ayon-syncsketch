@@ -119,14 +119,14 @@ class ServerCommunication:
         Returns:
             str: The joined and normalized URL path.
         """
-        path_segments = []
-        path_segments.append(base.rstrip("/"))
-        path_segments.extend(
+        url_segments = []
+        url_segments.append(base.rstrip("/"))
+        url_segments.extend(
             segment.strip("/") for segment in path_segments
         )
-        path_segments.append("")
-
-        return "/".join(path_segments)
+        url_segments.append("")
+        url_string = "/".join(url_segments)
+        return url_string
 
     def _get_unversioned_api_url(self, path):
         """
