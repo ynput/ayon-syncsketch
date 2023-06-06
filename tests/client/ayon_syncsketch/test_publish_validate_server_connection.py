@@ -45,3 +45,7 @@ class TestPublishValidateServerConnection(PublishTest):
 
         with pytest.raises(requests.exceptions.ConnectionError):
             plugin.process(mock_context)
+
+    def test_missing_context_data(self, context, plugin):
+        with pytest.raises(RuntimeError):
+            plugin.process(context)
