@@ -32,7 +32,7 @@ class ServerCommunication:
 
     def __init__(
         self,
-        auth,
+        user_auth,
         api_key,
         host="https://www.syncsketch.com",
         use_expiring_token=False,
@@ -45,7 +45,7 @@ class ServerCommunication:
         ServerCommunication object.
 
         Args:
-            auth (str): The user authentication.
+            user_auth (str): The user authentication.
             api_key (str): The API key.
             host (str, optional): The host URL.
                 Defaults to "https://www.syncsketch.com".
@@ -60,7 +60,7 @@ class ServerCommunication:
         """
 
         # set initial values
-        self.user_auth = auth
+        self.user_auth = user_auth
         self.api_key = api_key
         self.api_params = {}
         self.headers = {}
