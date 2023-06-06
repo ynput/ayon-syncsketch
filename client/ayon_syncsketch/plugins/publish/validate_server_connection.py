@@ -29,11 +29,13 @@ class ValidateServerConnection(pyblish.api.ContextPlugin):
         self.log.info("SyncSketch ID: {}".format(syncsketch_id))
         self.log.info("SyncSketch server config: {}".format(server_config))
 
-        response = self.get_json(server_config.get("url"))
+        server_handler = ServerCommunication(
+            user_auth=server_config.get("auth_user"),
+            api_key=server_config.get("auth_token"),
+            host=server_config.get("url")
+        )
 
-        context.data["syncsketchServerResponse"] = response
+        response = server_handler.is_connected()
 
-    def get_json(self, url):
-        resp = requests.get(url)
-        assert resp.status_code == 200
-        return resp.json()
+        if not response:
+            raise requests.exceptions.ConnectionError("SyncSketch connection failed.")
