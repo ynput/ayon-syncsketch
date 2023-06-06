@@ -2,9 +2,9 @@ from unittest.mock import Base
 import pytest
 import os
 import sys
+import responses
 from pathlib import Path
-import aiohttp
-from aioresponses import aioresponses
+
 
 from .config_tests import set_environment
 
@@ -13,11 +13,10 @@ set_environment()
 
 # adding client directory to sys.path
 client_dir = Path(os.path.dirname(os.path.abspath(__file__))) \
-    / ".." / ".." / "client"
+    / ".." /  "client"
 
 print("Adding client directory to sys.path: {}".format(client_dir.resolve()))
 sys.path.append(str(client_dir))
-
 
 # basic testing class
 class BaseTest:
@@ -33,14 +32,8 @@ class BaseTest:
     # This is the pytest fixture that creates a mock server
     @pytest.fixture(scope="module")
     def mock_server(self):
-        with aioresponses() as m:
-            yield m
-
-    # This is the pytest fixture that creates an aiohttp client
-    @pytest.fixture(scope="module")
-    async def client(self, loop, aiohttp_client, mock_server):
-        app = aiohttp.web.Application()
-        return await aiohttp_client(app)
+        with responses.RequestsMock() as rsps:
+            yield rsps
 
 
 class PublishTest(BaseTest):

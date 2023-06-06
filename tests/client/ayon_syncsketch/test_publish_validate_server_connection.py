@@ -1,7 +1,7 @@
 import pytest
 import logging
+import responses
 from tests.lib import PublishTest
-
 
 log = logging.getLogger(__name__)
 
@@ -31,10 +31,11 @@ class TestPublishValidateServerConnection(PublishTest):
 
         yield context
 
-    @pytest.mark.asyncio
-    async def test_get_json(client, mock_server, mock_context, plugin):
+    def test_get_json(self, mock_server, mock_context, plugin):
         url = 'http://test.com'
-        mock_server.get(url, payload={'key': 'value'})
+        mock_server.add(responses.GET, url, json={'key': 'value'}, status=200)
         plugin.process(mock_context)
-        resp = await get_json(client, url)
+
+        resp = mock_context.data.get("syncsketchServerResponse")
+
         assert resp == {'key': 'value'}
