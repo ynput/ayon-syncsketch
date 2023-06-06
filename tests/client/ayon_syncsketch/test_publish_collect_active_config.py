@@ -1,38 +1,17 @@
 import pytest
 import logging
-from tests.lib import BaseTest
-from pyblish.api import Context as PyblishContext
+from tests.lib import PublishTest
+
 
 log = logging.getLogger(__name__)
 
 
-class TestSyncsketchAddon(BaseTest):
+class TestPublishCollectActiveConfig(PublishTest):
 
     @pytest.fixture
-    def syncsketch_addon(self, ayon_module_manager):
-        manager = ayon_module_manager()
-        yield manager["syncsketch"]
-
-    @pytest.fixture
-    def context(self, syncsketch_addon):
-        class Context(PyblishContext):
-            data = {
-                "openPypeModules": {
-                    "syncsketch": syncsketch_addon
-                }
-            }
-        yield Context
-
-
-    @pytest.fixture
-    def plugin(self, syncsketch_addon):
-        import pyblish.api
-        from openpype.pipeline import install_openpype_plugins
-        install_openpype_plugins(host_name="syncsketch")
-
-        plugins = pyblish.api.discover()
+    def plugin(self, host_plugins):
         plugin = None
-        for plugin_ in plugins:
+        for plugin_ in host_plugins:
             if plugin_.__name__ == "CollectActiveServerConfig":
                 plugin = plugin_()
                 plugin.log = log

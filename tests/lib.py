@@ -1,7 +1,10 @@
+from unittest.mock import Base
 import pytest
 import os
 import sys
 from pathlib import Path
+import aiohttp
+from aioresponses import aioresponses
 
 from .config_tests import set_environment
 
@@ -26,3 +29,42 @@ class BaseTest:
         from openpype.modules import ModulesManager
 
         yield ModulesManager
+
+    # This is the pytest fixture that creates a mock server
+    @pytest.fixture(scope="module")
+    def mock_server(self):
+        with aioresponses() as m:
+            yield m
+
+    # This is the pytest fixture that creates an aiohttp client
+    @pytest.fixture(scope="module")
+    async def client(self, loop, aiohttp_client, mock_server):
+        app = aiohttp.web.Application()
+        return await aiohttp_client(app)
+
+
+class PublishTest(BaseTest):
+    @pytest.fixture(scope="package")
+    def syncsketch_addon(self, ayon_module_manager):
+        manager = ayon_module_manager()
+        yield manager["syncsketch"]
+
+    @pytest.fixture(scope="package")
+    def host_plugins(self, syncsketch_addon):
+        import pyblish.api
+        from openpype.pipeline import install_openpype_plugins
+        install_openpype_plugins(host_name="syncsketch")
+
+        yield pyblish.api.discover()
+
+    @pytest.fixture
+    def context(self, syncsketch_addon):
+        from pyblish.api import Context as PyblishContext
+
+        class Context(PyblishContext):
+            data = {
+                "openPypeModules": {
+                    "syncsketch": syncsketch_addon
+                }
+            }
+        yield Context
