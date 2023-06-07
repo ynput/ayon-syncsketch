@@ -604,7 +604,7 @@ class ServerCommunication:
         )
 
     def add_media(self, review_id, filepath, artist_name="", file_name="",
-                  noConvertFlag=False, itemParentId=False):
+                  no_convert_flag=False, item_parent_id=False):
         """
         Convenience function to upload a file to a review. It will
         automatically create an Item and attach it to the review.
@@ -616,10 +616,10 @@ class ServerCommunication:
                 associated with this media file. Defaults to "".
             file_name (str, optional): The name of the file. Please make
                 sure to pass the correct file extension. Defaults to "".
-            noConvertFlag (bool, optional): The video you are uploading
+            no_convert_flag (bool, optional): The video you are uploading
                 is already in a browser compatible format. Defaults to False.
-            itemParentId (int, optional): Set when you want to add a new
-                version of an item. itemParentId is the id of the item you want
+            item_parent_id (int, optional): Set when you want to add a new
+                version of an item. item_parent_id is the id of the item you want
                 to upload a new version for. Defaults to False.
 
         Returns:
@@ -627,19 +627,19 @@ class ServerCommunication:
         """
         get_params = self.api_params.copy()
 
-        if noConvertFlag:
+        if no_convert_flag:
             get_params.update({"noConvertFlag": 1})
 
-        if itemParentId:
-            get_params.update({"itemParentId": itemParentId})
+        if item_parent_id:
+            get_params.update({"itemParentId": item_parent_id})
 
-        uploadURL = "/items/uploadToReview/{}?{}".format(
+        upload_url = "/items/uploadToReview/{}?{}".format(
             review_id, urlencode(get_params)
         )
 
         files = {"reviewFile": open(filepath, "rb")}
         result = requests.post(
-            uploadURL,
+            upload_url,
             files=files,
             data=dict(artist=artist_name, name=file_name),
             headers=self.headers

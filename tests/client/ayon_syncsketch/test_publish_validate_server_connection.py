@@ -22,7 +22,7 @@ class TestPublishValidateServerConnection(PublishTest):
     @pytest.fixture
     def mock_context(self, context):
         context.data.update({
-            "projectSyncsketchId": "1234567890",
+            "syncsketchProjectId": "1234567890",
             "syncsketchServerConfig": {
                 "name": "testing",
                 "active": True,

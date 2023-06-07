@@ -16,6 +16,8 @@ class ValidateServerConnection(pyblish.api.ContextPlugin):
     label = "Validate SyncSketch Connection"
 
     def process(self, context):
+        self.log.info("Validating SyncSketch connection...")
+
         syncsketch_id = context.data.get("syncsketchProjectId")
         server_config = context.data.get("syncsketchServerConfig")
 
@@ -25,7 +27,6 @@ class ValidateServerConnection(pyblish.api.ContextPlugin):
         if not server_config:
             raise RuntimeError("SyncSketch server config is not set.")
 
-        self.log.info("Validating SyncSketch connection...")
         self.log.info("SyncSketch ID: {}".format(syncsketch_id))
         self.log.info("SyncSketch server config: {}".format(server_config))
 
