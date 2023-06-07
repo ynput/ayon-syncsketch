@@ -565,7 +565,7 @@ class ServerCommunication:
             patch_data=data
         )
 
-    def get_item(self, item_id, data=None):
+    def get_review_item(self, item_id, data=None):
         """
         Get single item by id.
 
@@ -582,7 +582,7 @@ class ServerCommunication:
             get_data=data
         )
 
-    def update_item(self, item_id, data):
+    def update_review_item(self, item_id, data):
         """
         Update an item by id.
 
@@ -603,7 +603,7 @@ class ServerCommunication:
             patch_data=data
         )
 
-    def add_media(self, review_id, filepath, artist_name="", file_name="",
+    def upload_review_item(self, review_id, filepath, artist_name="", file_name="",
                   no_convert_flag=False, item_parent_id=False):
         """
         Convenience function to upload a file to a review. It will
