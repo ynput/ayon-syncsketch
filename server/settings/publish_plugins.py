@@ -3,22 +3,22 @@ from pydantic import Field
 from ayon_server.settings import BaseSettingsModel
 
 
-class CollectActiveServerConfigModel(BaseSettingsModel):
-    """Settings for active SyncSketch server."""
+class IntegrateSyncSketchReviewableModel(BaseSettingsModel):
+    """Settings for Integrate SyncSketch reviewable plugin."""
 
-    single: bool = Field(title="Single SyncSketch server")
+    review_list: str = Field(title="Review List")
 
 
 class PublishPluginsModel(BaseSettingsModel):
-    CollectActiveServerConfig: CollectActiveServerConfigModel = \
+    IntegrateSyncSketchReviewable: IntegrateSyncSketchReviewableModel = \
         Field(
-            default_factory=CollectActiveServerConfigModel,
-            title="Collect active SyncSketch server"
+            default_factory=IntegrateSyncSketchReviewableModel,
+            title="Integrate SyncSketch Reviewable"
         )
 
 
 DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS = {
-    "CollectActiveServerConfig":  {
-        "single": True
+    "IntegrateSyncSketchReviewable":  {
+        "review_list": "Uploads from Ayon"
     }
 }

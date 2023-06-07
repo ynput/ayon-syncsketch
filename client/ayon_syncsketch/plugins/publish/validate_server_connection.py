@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Validate a SyncSketch connection."""
-import requests
 import pyblish.api
-from ayon_syncsketch.api.server_handler import ServerCommunication
+from openpype_modules.ayon_syncsketch.api.server_handler import ServerCommunication
+import requests
 
 
 class ValidateServerConnection(pyblish.api.ContextPlugin):
@@ -16,9 +16,7 @@ class ValidateServerConnection(pyblish.api.ContextPlugin):
     label = "Validate SyncSketch Connection"
 
     def process(self, context):
-        self.log.info("Validating SyncSketch connection...")
-
-        syncsketch_id = context.data.get("projectSyncsketchId")
+        syncsketch_id = context.data.get("syncsketchProjectId")
         server_config = context.data.get("syncsketchServerConfig")
 
         if not syncsketch_id:
@@ -27,8 +25,9 @@ class ValidateServerConnection(pyblish.api.ContextPlugin):
         if not server_config:
             raise RuntimeError("SyncSketch server config is not set.")
 
-        self.log.debug("SyncSketch ID: {}".format(syncsketch_id))
-        self.log.debug("SyncSketch server config: {}".format(server_config))
+        self.log.info("Validating SyncSketch connection...")
+        self.log.info("SyncSketch ID: {}".format(syncsketch_id))
+        self.log.info("SyncSketch server config: {}".format(server_config))
 
         server_handler = ServerCommunication(
             user_auth=server_config.get("auth_user"),
