@@ -14,9 +14,11 @@ set_environment()
 # adding client directory to sys.path
 client_dir = Path(os.path.dirname(os.path.abspath(__file__))) \
     / ".." /  "client"
+client_api_dir = client_dir / "ayon_syncsketch" / "api"
 
 print("Adding client directory to sys.path: {}".format(client_dir.resolve()))
 sys.path.append(str(client_dir))
+sys.path.append(str(client_api_dir))
 
 # basic testing class
 class BaseTest:

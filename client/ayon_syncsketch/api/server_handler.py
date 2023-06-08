@@ -13,8 +13,6 @@ except ImportError:
     from urlparse import urlparse
     from urllib import urlencode
 
-log = logging.getLogger(__name__)
-
 
 class ServerCommunication:
     """
@@ -29,6 +27,7 @@ class ServerCommunication:
         debug (bool): Debug mode status.
         HOST (str): The host URL.
     """
+    log = logging.getLogger(__name__)
 
     def __init__(
         self,
@@ -39,6 +38,7 @@ class ServerCommunication:
         debug=False,
         api_version="v1",
         use_header_auth=False,
+        log=None
     ):
         """
         Constructs all the necessary attributes for the
@@ -58,6 +58,8 @@ class ServerCommunication:
             use_header_auth (bool, optional): Use of header authentication.
                 Defaults to False.
         """
+        if log:
+            self.log = log
 
         # set initial values
         self.user_auth = user_auth
@@ -148,8 +150,10 @@ class ServerCommunication:
         post_data=None,
         patch_data=None,
         put_data=None,
+        api_params=None,
         content_type="application/json",
         raw_response=False,
+        **kwargs
     ):
         """
         Function to get a JSON response from the server.
@@ -170,7 +174,7 @@ class ServerCommunication:
             dict or requests.Response: The JSON response or raw response.
         """
         url = self._get_unversioned_api_url(url)
-        params = self.api_params.copy()
+        params = api_params or self.api_params.copy()
         headers = self.headers.copy()
         headers["Content-Type"] = content_type
 
@@ -178,48 +182,75 @@ class ServerCommunication:
             params.update(get_data)
 
         if self.debug:
-            log.debug("URL: {}, params: {}".format(url, params))
+            self.log.debug("URL: {}, params: {}".format(url, params))
 
         if post_data or method == "post":
+            src_files = kwargs.get("files")
+            if src_files:
+                new_src_files = {}
+                for key, path in src_files.items():
+                    with open(path, "rb") as stream:
+                        new_src_files[key] = stream.read()
+                src_files = new_src_files
+
+            self.log.debug("URL: {}, params: {}".format(url, params))
+
             result = requests.post(
-                url, params=params,
-                data=json.dumps(post_data),
+                url,
+                data=post_data,
+                files=src_files,
+                params=params,
                 headers=headers
             )
+
         elif patch_data or method == "patch":
             result = requests.patch(
                 url,
                 params=params,
                 json=patch_data,
-                headers=headers
+                headers=headers,
+                **kwargs
             )
         elif put_data or method == "put":
             result = requests.put(
                 url,
                 params=params,
                 json=put_data,
-                headers=headers
+                headers=headers,
+                **kwargs
             )
         elif method == "delete":
             result = requests.patch(
                 url,
                 params=params,
                 data={"active": False},
-                headers=headers
+                headers=headers,
+                **kwargs
             )
         else:
-            result = requests.get(url, params=params, headers=headers)
+            result = requests.get(
+                url,
+                params=params,
+                headers=headers,
+                **kwargs
+            )
 
         if raw_response:
             return result
 
+        result.raise_for_status()
+
+        """ TODO: This is a temporary fix for the API returning
+        This needs to be handled in specific api call functions instead.
+        Each of those functions should have own error handling.
+        """
         try:
             return result.json()
         except Exception as e:
             if self.debug:
-                log.error(e)
+                self.log.error(e)
 
-            log.error("Error: {}".format(result.text))
+            self.log.error("Error: {}".format(result.text))
 
             return {"objects": []}
 
@@ -235,7 +266,7 @@ class ServerCommunication:
         params = self.api_params.copy()
 
         if self.debug:
-            log.debug("URL: {}, params: {}".format(url, params))
+            self.log.debug("URL: {}, params: {}".format(url, params))
 
         result = self._get_json_response(url, raw_response=True)
         return result.status_code == 200
@@ -353,7 +384,7 @@ class ServerCommunication:
             dict: The updated project.
         """
         if not isinstance(data, dict):
-            log.debug("Please make sure you pass a dict as data")
+            self.log.debug("Please make sure you pass a dict as data")
             return False
 
         return self._get_json_response(
@@ -557,7 +588,7 @@ class ServerCommunication:
             False otherwise.
         """
         if not isinstance(data, dict):
-            log.debug("Please make sure you pass a dict as data")
+            self.log.debug("Please make sure you pass a dict as data")
             return False
 
         return self._get_json_response(
@@ -580,27 +611,6 @@ class ServerCommunication:
         return self._get_json_response(
             "/api/{}/item/{}/".format(self.api_version, item_id),
             get_data=data
-        )
-
-    def update_review_item(self, item_id, data):
-        """
-        Update an item by id.
-
-        Args:
-            item_id (int): The ID of the item.
-            data (dict): The new data for the item.
-
-        Returns:
-            dict/bool: The response from the API call if the data is a dict,
-                False otherwise.
-        """
-        if not isinstance(data, dict):
-            log.debug("Please make sure you pass a dict as data")
-            return False
-
-        return self._get_json_response(
-            "/api/{}/item/{}/".format(self.api_version, item_id),
-            patch_data=data
         )
 
     def upload_review_item(self, review_id, filepath, artist_name="", file_name="",
@@ -633,15 +643,17 @@ class ServerCommunication:
         if item_parent_id:
             get_params.update({"itemParentId": item_parent_id})
 
-        upload_url = "/items/uploadToReview/{}?{}".format(
-            review_id, urlencode(get_params)
+        upload_url = "{}/items/uploadToReview/{}/?{}".format(
+            self.HOST, review_id, urlencode(get_params)
         )
 
         files = {"reviewFile": open(filepath, "rb")}
         result = requests.post(
             upload_url,
+            data=dict(
+                artist=artist_name, name=file_name
+            ),
             files=files,
-            data=dict(artist=artist_name, name=file_name),
             headers=self.headers
         )
 
