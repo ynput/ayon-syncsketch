@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Integrate SyncSketch reviewables."""
 import os
+import json
 from copy import deepcopy
 import pyblish.api
 from openpype.pipeline import KnownPublishError
@@ -70,24 +71,35 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
 
         self.log.info("Review list ID: {}".format(review_list_id))
 
-        review_item_id = self.upload_reviewable(
+        review_item_id, review_item_name = self.upload_reviewable(
             representations, anatomy_data, server_handler, review_list_id, user_name)
-
-        # update review item with avalon version entity ID
-        self.update_version_entity(version_entity, review_item_id)
 
         # update version entity with review item ID
         if review_item_id:
+            # update review item with avalon version entity ID
+            self.update_version_entity(
+                server_handler, version_entity, review_item_id, review_item_name)
+
             version_attributes = instance.data.get("versionAttributes", {})
             version_attributes["syncsketchId"] = review_item_id
             instance.data["versionAttributes"] = version_attributes
         else:
             raise KnownPublishError("SyncSketch upload failed.")
 
-    def update_version_entity(self, version_entity, review_item_id):
+    def update_version_entity(
+            self, server_handler, version_entity,
+            review_item_id, review_item_name
+        ):
+        """Update version entity with review item ID."""
+        data = {
+            "name": review_item_name,
+            "metadata": json.dumps({"ayonVersionID": version_entity["_id"]})
+        }
         self.log.debug("Version entity id: {}".format(version_entity["_id"]))
         self.log.debug("Review item id: {}".format(review_item_id))
 
+        # update review item with version entity ID
+        result = server_handler.update_review_item(review_item_id, data)
 
     def upload_reviewable(self,
             representations, anatomy_data, server_handler,
@@ -122,8 +134,8 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
                 no_convert_flag=False,
                 item_parent_id=False
             )
-            # get ID of the uploaded media: response["id"]
-            return response.get("id")
+            # get ID of the uploaded media: response["id"] and review item name
+            return response.get("id"), review_item_name
 
     def get_review_list_id(self, context, server_handler, project_id):
         """Get review list ID by name."""

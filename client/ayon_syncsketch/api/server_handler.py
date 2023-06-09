@@ -613,6 +613,23 @@ class ServerCommunication:
             get_data=data
         )
 
+    def update_review_item(self, item_id, data=None):
+        """
+        Update single item by id.
+
+        Args:
+            item_id (int): The ID of the item.
+            data (dict, optional): Additional data for the item.
+                Defaults to None.
+
+        Returns:
+            dict: The item data.
+        """
+        return self._get_json_response(
+            "/api/{}/item/{}/".format(self.api_version, item_id),
+            patch_data=data
+        )
+
     def upload_review_item(self, review_id, filepath, artist_name="", file_name="",
                   no_convert_flag=False, item_parent_id=False):
         """
@@ -660,7 +677,7 @@ class ServerCommunication:
         try:
             return json.loads(result.text)
         except Exception:
-            log.error(result.text)
+            self.log.error(result.text)
 
     def get_media_by_review_id(self, review_id):
         """
