@@ -5,6 +5,7 @@ from openpype.modules import (
     OpenPypeAddOn,
     IPluginPaths,
 )
+from ayon_api import get_addon_project_settings
 
 SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -13,19 +14,27 @@ class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
     name = "syncsketch"
     enabled = True
 
-    def get_syncsketch_project_active_config(self, project_settings=None):
+    # TODO: replace constant with dynamic version
+    version = "1.0.0"
+
+    def get_syncsketch_project_active_config(self, project_name):
         """ Returns the active SyncSketch config for the current project """
+
+        project_settings = get_addon_project_settings(
+            self.name,
+            self.version,
+            project_name
+        )
+
         # fallback to current project settings
         if not project_settings:
-            self._project_settings = get_project_settings(
+            project_settings = get_project_settings(
                 get_current_project_name()
             )
 
         # get all configs
         configs = (
-            self._project_settings
-            ["syncsketch"]
-            ["syncsketch_server_configs"]
+            project_settings["syncsketch_server_configs"]
         )
 
         # find the active one
@@ -55,7 +64,4 @@ class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
         Args:
            host_name (str): For which host are the plugins meant.
         """
-        if host_name != "syncsketch":
-            return []
-
         return self._get_plugin_paths_by_type("publish")

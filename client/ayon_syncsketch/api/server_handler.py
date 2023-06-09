@@ -13,8 +13,6 @@ except ImportError:
     from urlparse import urlparse
     from urllib import urlencode
 
-log = logging.getLogger(__name__)
-
 
 class ServerCommunication:
     """
@@ -29,23 +27,25 @@ class ServerCommunication:
         debug (bool): Debug mode status.
         HOST (str): The host URL.
     """
+    log = logging.getLogger(__name__)
 
     def __init__(
         self,
-        auth,
+        user_auth,
         api_key,
         host="https://www.syncsketch.com",
         use_expiring_token=False,
         debug=False,
         api_version="v1",
         use_header_auth=False,
+        log=None
     ):
         """
         Constructs all the necessary attributes for the
         ServerCommunication object.
 
         Args:
-            auth (str): The user authentication.
+            user_auth (str): The user authentication.
             api_key (str): The API key.
             host (str, optional): The host URL.
                 Defaults to "https://www.syncsketch.com".
@@ -58,9 +58,11 @@ class ServerCommunication:
             use_header_auth (bool, optional): Use of header authentication.
                 Defaults to False.
         """
+        if log:
+            self.log = log
 
         # set initial values
-        self.user_auth = auth
+        self.user_auth = user_auth
         self.api_key = api_key
         self.api_params = {}
         self.headers = {}
@@ -119,14 +121,14 @@ class ServerCommunication:
         Returns:
             str: The joined and normalized URL path.
         """
-        path_segments = []
-        path_segments.append(base.rstrip("/"))
-        path_segments.extend(
+        url_segments = []
+        url_segments.append(base.rstrip("/"))
+        url_segments.extend(
             segment.strip("/") for segment in path_segments
         )
-        path_segments.append("")
-
-        return "/".join(path_segments)
+        url_segments.append("")
+        url_string = "/".join(url_segments)
+        return url_string
 
     def _get_unversioned_api_url(self, path):
         """
@@ -148,8 +150,10 @@ class ServerCommunication:
         post_data=None,
         patch_data=None,
         put_data=None,
+        api_params=None,
         content_type="application/json",
         raw_response=False,
+        **kwargs
     ):
         """
         Function to get a JSON response from the server.
@@ -170,7 +174,7 @@ class ServerCommunication:
             dict or requests.Response: The JSON response or raw response.
         """
         url = self._get_unversioned_api_url(url)
-        params = self.api_params.copy()
+        params = api_params or self.api_params.copy()
         headers = self.headers.copy()
         headers["Content-Type"] = content_type
 
@@ -178,48 +182,75 @@ class ServerCommunication:
             params.update(get_data)
 
         if self.debug:
-            log.debug("URL: {}, params: {}".format(url, params))
+            self.log.debug("URL: {}, params: {}".format(url, params))
 
         if post_data or method == "post":
+            src_files = kwargs.get("files")
+            if src_files:
+                new_src_files = {}
+                for key, path in src_files.items():
+                    with open(path, "rb") as stream:
+                        new_src_files[key] = stream.read()
+                src_files = new_src_files
+
+            self.log.debug("URL: {}, params: {}".format(url, params))
+
             result = requests.post(
-                url, params=params,
-                data=json.dumps(post_data),
+                url,
+                data=post_data,
+                files=src_files,
+                params=params,
                 headers=headers
             )
+
         elif patch_data or method == "patch":
             result = requests.patch(
                 url,
                 params=params,
                 json=patch_data,
-                headers=headers
+                headers=headers,
+                **kwargs
             )
         elif put_data or method == "put":
             result = requests.put(
                 url,
                 params=params,
                 json=put_data,
-                headers=headers
+                headers=headers,
+                **kwargs
             )
         elif method == "delete":
             result = requests.patch(
                 url,
                 params=params,
                 data={"active": False},
-                headers=headers
+                headers=headers,
+                **kwargs
             )
         else:
-            result = requests.get(url, params=params, headers=headers)
+            result = requests.get(
+                url,
+                params=params,
+                headers=headers,
+                **kwargs
+            )
 
         if raw_response:
             return result
 
+        result.raise_for_status()
+
+        """ TODO: This is a temporary fix for the API returning
+        This needs to be handled in specific api call functions instead.
+        Each of those functions should have own error handling.
+        """
         try:
             return result.json()
         except Exception as e:
             if self.debug:
-                log.error(e)
+                self.log.error(e)
 
-            log.error("Error: {}".format(result.text))
+            self.log.error("Error: {}".format(result.text))
 
             return {"objects": []}
 
@@ -235,7 +266,7 @@ class ServerCommunication:
         params = self.api_params.copy()
 
         if self.debug:
-            log.debug("URL: {}, params: {}".format(url, params))
+            self.log.debug("URL: {}, params: {}".format(url, params))
 
         result = self._get_json_response(url, raw_response=True)
         return result.status_code == 200
@@ -353,7 +384,7 @@ class ServerCommunication:
             dict: The updated project.
         """
         if not isinstance(data, dict):
-            log.debug("Please make sure you pass a dict as data")
+            self.log.debug("Please make sure you pass a dict as data")
             return False
 
         return self._get_json_response(
@@ -557,7 +588,7 @@ class ServerCommunication:
             False otherwise.
         """
         if not isinstance(data, dict):
-            log.debug("Please make sure you pass a dict as data")
+            self.log.debug("Please make sure you pass a dict as data")
             return False
 
         return self._get_json_response(
@@ -565,7 +596,7 @@ class ServerCommunication:
             patch_data=data
         )
 
-    def get_item(self, item_id, data=None):
+    def get_review_item(self, item_id, data=None):
         """
         Get single item by id.
 
@@ -582,29 +613,25 @@ class ServerCommunication:
             get_data=data
         )
 
-    def update_item(self, item_id, data):
+    def update_review_item(self, item_id, data=None):
         """
-        Update an item by id.
+        Update single item by id.
 
         Args:
             item_id (int): The ID of the item.
-            data (dict): The new data for the item.
+            data (dict, optional): Additional data for the item.
+                Defaults to None.
 
         Returns:
-            dict/bool: The response from the API call if the data is a dict,
-                False otherwise.
+            dict: The item data.
         """
-        if not isinstance(data, dict):
-            log.debug("Please make sure you pass a dict as data")
-            return False
-
         return self._get_json_response(
             "/api/{}/item/{}/".format(self.api_version, item_id),
             patch_data=data
         )
 
-    def add_media(self, review_id, filepath, artist_name="", file_name="",
-                  noConvertFlag=False, itemParentId=False):
+    def upload_review_item(self, review_id, filepath, artist_name="", file_name="",
+                  no_convert_flag=False, item_parent_id=False):
         """
         Convenience function to upload a file to a review. It will
         automatically create an Item and attach it to the review.
@@ -616,10 +643,10 @@ class ServerCommunication:
                 associated with this media file. Defaults to "".
             file_name (str, optional): The name of the file. Please make
                 sure to pass the correct file extension. Defaults to "".
-            noConvertFlag (bool, optional): The video you are uploading
+            no_convert_flag (bool, optional): The video you are uploading
                 is already in a browser compatible format. Defaults to False.
-            itemParentId (int, optional): Set when you want to add a new
-                version of an item. itemParentId is the id of the item you want
+            item_parent_id (int, optional): Set when you want to add a new
+                version of an item. item_parent_id is the id of the item you want
                 to upload a new version for. Defaults to False.
 
         Returns:
@@ -627,28 +654,30 @@ class ServerCommunication:
         """
         get_params = self.api_params.copy()
 
-        if noConvertFlag:
+        if no_convert_flag:
             get_params.update({"noConvertFlag": 1})
 
-        if itemParentId:
-            get_params.update({"itemParentId": itemParentId})
+        if item_parent_id:
+            get_params.update({"itemParentId": item_parent_id})
 
-        uploadURL = "/items/uploadToReview/{}?{}".format(
-            review_id, urlencode(get_params)
+        upload_url = "{}/items/uploadToReview/{}/?{}".format(
+            self.HOST, review_id, urlencode(get_params)
         )
 
         files = {"reviewFile": open(filepath, "rb")}
         result = requests.post(
-            uploadURL,
+            upload_url,
+            data=dict(
+                artist=artist_name, name=file_name
+            ),
             files=files,
-            data=dict(artist=artist_name, name=file_name),
             headers=self.headers
         )
 
         try:
             return json.loads(result.text)
         except Exception:
-            log.error(result.text)
+            self.log.error(result.text)
 
     def get_media_by_review_id(self, review_id):
         """

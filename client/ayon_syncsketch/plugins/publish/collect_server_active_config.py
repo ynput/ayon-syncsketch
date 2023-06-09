@@ -9,8 +9,6 @@ class CollectActiveServerConfig(pyblish.api.ContextPlugin):
     order = pyblish.api.CollectorOrder
     label = "Active SyncSketch Server"
 
-    single = False
-
     def process(self, context):
         try:
             syncsketch_addon = (
