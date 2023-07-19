@@ -13,6 +13,8 @@ class ServerListSubmodel(BaseSettingsModel):
     name: str = Field(title="Name")
     url: str = Field(title="Value")
     auth_token: str = Field(title="Auth Token")
+    auth_user: str = Field(title="Auth Username")
+    account_id: str = Field(title="Account ID")
 
 
 class SyncsketchSettings(BaseSettingsModel):
@@ -36,10 +38,12 @@ class SyncsketchSettings(BaseSettingsModel):
 DEFAULT_VALUES = {
     "syncsketch_server_configs": [
         {
-            "name": "default",
-            "url": "http://studio.syncsketch.com",
             "active": True,
-            "auth_token": ""
+            "name": "default",
+            "url": "https://www.syncsketch.com",
+            "auth_token": "",
+            "auth_user": "",
+            "account_id": "",
         }
     ],
     "publish": DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS
