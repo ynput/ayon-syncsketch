@@ -114,10 +114,19 @@ class SyncSketchProcessor:
         # check what is the ayon version id stored at related review item in syncsketch
         # get ayon version entity and get ftrack version id from version attributes
         # pass the comment to related ftrack version entitiy comments
+        # {
+        # "action": "review_session_end",
+        # "review": {
+        #     "id": 2783585,
+        #     "link": "https://syncsketch.com/sketch/NmZmNTg5N2I5/",
+        #     "name": "My fancy review"
+        # },
+        # "project_name": "testApiProjectKey"
+        # }
         return
 
         # pseudocode, since i don't have a real payload
-        sk_review = self.sk_session.get_review_by_id(payload["review_session"]["id"])
+        sk_review = self.sk_session.get_review_by_id(payload["review"]["id"])
         ayon_id = sk_review["customAttributes"]["ayonId"]
 
         if not ayon_id:
@@ -144,7 +153,7 @@ class SyncSketchProcessor:
             logging.error("Unable to find Version <{ftrack_id}>")
             return
 
-        # Compare sessino notes with the ft entity notes
+        # Compare sessions notes with the ft entity notes
         # Add only the new ones
 
 
