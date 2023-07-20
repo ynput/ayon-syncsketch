@@ -124,36 +124,51 @@ class SyncSketchProcessor:
         # "project_name": "testApiProjectKey"
         # }
         return
-
+        review_media_with_notes = []
+        review_id = payload["review"]["id"]
         # pseudocode, since i don't have a real payload
-        sk_review = self.sk_session.get_review_by_id(payload["review"]["id"])
-        ayon_id = sk_review["customAttributes"]["ayonId"]
+        for media in self.sk_session.get_media_by_review_id(review_id)["objects"]:
+            media_dict = {}
 
-        if not ayon_id:
-            logging.error("Review is missing the AYON id.")
-            return
+            ayon_id = media.get("metadata", {}).get("ayonVersionID")
+                
+            if not ayon_id:
+                logging.error(f"Media {media['name']} is missing the AYON id.")
+                continue
 
-        # Unsure which one is it supposed to be
-        # ayon_entity = ayon_api.get_folder_by_id(str(ayon_id))
-        ayon_entity = ayon_api.get_subset_by_id(str(ayon_id))
+            media_dict["ayon_id"] = ayon_id
+            media_dict["notes"] = []
 
-        if not ayon_entity:
-            logging.error(f"Couldn't find AYON entity with id {ayon_id}")
-            return
+            for note in self.sk_session.get_annotations(media["id"], review_id=review_id)["objects"]:
+                media_dict["notes"].append({
+                    "username": note["creator"]["username"],
+                    "text": note["text"]
+                })
 
-        ftrack_id = ayon_entity.attribs.get("ftrackId")
+            if media_dict["notes"]:
+                review_media_with_notes.append(media_dict)
 
-        if not ftrack_id:
-            logging.error("AYON entity does not have the ftrackId attribute.")
-            return
 
-        ft_entity = self.ft_session.query(f'Version where id is {ftrack_id}').one()
+        for entity in review_media_with_notes:
+            ayon_entity = ayon_api.get_subset_by_id(entity["ayon_id"])
 
-        if not ft_entity:
-            logging.error("Unable to find Version <{ftrack_id}>")
-            return
+            if not ayon_entity:
+                logging.error(f"Couldn't find AYON entity with id {ayon_id}")
+                continue
 
-        # Compare sessions notes with the ft entity notes
-        # Add only the new ones
+            ftrack_id = ayon_entity.attribs.get("ftrackId")
+
+            if not ftrack_id:
+                logging.error("AYON entity does not have the ftrackId attribute.")
+                continue
+
+            ft_entity = self.ft_session.query(f'Version where id is {ftrack_id}').one()
+
+            if not ft_entity:
+                logging.error("Unable to find Version <{ftrack_id}>")
+                continue
+
+            # Compare sessions notes with the ft entity notes
+            # Add only the new ones
 
 
