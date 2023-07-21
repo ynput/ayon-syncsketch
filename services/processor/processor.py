@@ -111,64 +111,130 @@ class SyncSketchProcessor:
                 log_traceback(err)
 
     def _upload_sk_notes_to_ftrack(self, payload):
-        # check what is the ayon version id stored at related review item in syncsketch
-        # get ayon version entity and get ftrack version id from version attributes
-        # pass the comment to related ftrack version entitiy comments
-        # {
-        # "action": "review_session_end",
-        # "review": {
-        #     "id": 2783585,
-        #     "link": "https://syncsketch.com/sketch/NmZmNTg5N2I5/",
-        #     "name": "My fancy review"
-        # },
-        # "project_name": "testApiProjectKey"
-        # }
-        return
+        """ Update an FTrack task with SyncSketch notes.
+
+        The payload contains a SyncSketch reveiw, which we use to find the
+        associated Ayon entity, and through that the FTrack AssetVersion and
+        Task, if all is found, we try to update the Task's notes with the ones
+        from SyncSketch that are not already there.
+
+        Notes are published as the same user as in SyncSketch if the user has the
+        username in FTrack otherwise it defaults to the API username.
+
+        Args:
+            payload (dict): Dict with the `action`, `review` and `project_name`, i.e:
+            {
+                "action": "review_session_end",
+                "review": {
+                    "id": 2783585,
+                    "link": "https://syncsketch.com/sketch/NmZmNTg5N2I5/",
+                    "name": "My fancy review"
+                },
+                "project_name": "testApiProjectKey"
+            }
+        """
         review_media_with_notes = []
         review_id = payload["review"]["id"]
-        # pseudocode, since i don't have a real payload
+
         for media in self.sk_session.get_media_by_review_id(review_id)["objects"]:
             media_dict = {}
 
             ayon_id = media.get("metadata", {}).get("ayonVersionID")
-                
+
             if not ayon_id:
                 logging.error(f"Media {media['name']} is missing the AYON id.")
                 continue
 
-            media_dict["ayon_id"] = ayon_id
+            # Not sure what data type are we uploading to Ayon...
+            ayon_entity = ayon_api.get_subset_by_id(ayon_id)
+
+            if not ayon_entity.attribs.get("ftrackId"):
+                logging.error(f"Media {ayon_entity} is missing the Ftrack ID.")
+                continue
+
+            media_dict["ftrack_id"] = ayon_entity.attribs.get("ftrackId")
             media_dict["notes"] = []
 
             for note in self.sk_session.get_annotations(media["id"], review_id=review_id)["objects"]:
+                if not note["text"]:
+                    logging.info("Note has no text, most likely it's a sketch.")
+                    continue
+
+                note_text = f"{note['text']}\nFilepath: {ayon_entity.path}\n{payload['review']['link']}"
                 media_dict["notes"].append({
                     "username": note["creator"]["username"],
-                    "text": note["text"]
+                    "text": note_text
                 })
 
             if media_dict["notes"]:
                 review_media_with_notes.append(media_dict)
 
 
-        for entity in review_media_with_notes:
-            ayon_entity = ayon_api.get_subset_by_id(entity["ayon_id"])
+        for sk_media in review_media_with_notes:
+            ayon_entity = ayon_api.get_subset_by_id(sk_media["ayon_id"])
 
-            if not ayon_entity:
-                logging.error(f"Couldn't find AYON entity with id {ayon_id}")
+            #Ftrack AssetVersion
+            ft_av = self._ft_query_one_by_id(
+                "AssetVersion",
+                sk_media['ftrack_id'],
+                selection=["task_id"]
+            )
+
+            if not ft_av:
+                logging.error("Unable to find Task <{ftrack_id}>")
                 continue
 
-            ftrack_id = ayon_entity.attribs.get("ftrackId")
+            ft_task = self._ft_query_one_by_id(
+                "Task",
+                ft_av['task_id'],
+                selection=["notes", "notes.author.username", "notes.content"]
+            )
 
-            if not ftrack_id:
-                logging.error("AYON entity does not have the ftrackId attribute.")
-                continue
+            existing_ftrack_notes = [
+                {"username": note["author"]["username"], "text": note["content"]}
+                for note in ft_task["notes"]
+            ]
 
-            ft_entity = self.ft_session.query(f'Version where id is {ftrack_id}').one()
+            for sk_note in sk_media["notes"]:
+                if sk_note not in existing_ftrack_notes:
+                    try:
+                        ft_user = self.ft_session.session.query(
+                            f"User where username is {sk_note['username']}"
+                        ).one()
+                    except Exception:
+                        # Default to the API user
+                        api_username = self.settings["ftrack_api_username"]
+                        ft_user = self.ft_session.session.query(
+                            f"User where username is '{api_username}'"
+                        )
 
-            if not ft_entity:
-                logging.error("Unable to find Version <{ftrack_id}>")
-                continue
+                    new_note = self.ft_session.create('Note', {
+                        'content': sk_note["text"],
+                        'author': ft_user
+                    })
+                    ft_task["notes"].append(new_note)
 
-            # Compare sessions notes with the ft entity notes
-            # Add only the new ones
+            self.ft_session.commit()
+
+        def _ft_query_one_by_id(self, ft_type, id, selection=None):
+            """ Helper method to do long FTrack queries.
+
+            Args:
+                ft_type (str): The FTrack entity type.
+                id (str): The Ftrack entity id.
+                selection (Optional|list): List of attributes to select.
+
+            Returns:
+                Ftrack Entity | ftrack_api.exception.NoResultFoundError | ftrack_api.exception.ServerError.
+            """
+            query = f"{ft_type} where id is {id}"
+
+            if selection:
+                if isinstance(selection, list):
+                    query = f"select {', '.join(selection)} from {query}"
+                else:
+                    logging.error("Selection has to be a list, ignoring.")
+
+            return self.ft_session.query(query).one()
 
 
