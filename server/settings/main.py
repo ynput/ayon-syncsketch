@@ -12,6 +12,7 @@ class ServerListSubmodel(BaseSettingsModel):
     active: bool = Field(title="Active")
     name: str = Field(title="Name")
     url: str = Field(title="Value")
+    auth_user: str = Field(title="Auth User")
     auth_token: str = Field(title="Auth Token")
     auth_user: str = Field(title="Auth Username")
     account_id: str = Field(title="Account ID")
