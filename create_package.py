@@ -238,7 +238,7 @@ def create_server_package(output_dir, addon_output_dir, addon_version, log):
                 continue
 
             dst_root = "addon"
-            if root != addon_output_dir_offset:
+            if root != addon_output_dir:
                 dst_root = os.path.join(
                     dst_root, root[addon_output_dir_offset:]
                 )
