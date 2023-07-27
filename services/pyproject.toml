@@ -9,8 +9,12 @@ python = ">=3.9,<4.0"
 pydantic = "^1.10.2"
 nxtools = "^1.6"
 ayon-python-api = "^0.1"
+# TODO: once server handler is distributed form common this is not needed
+# TODO: perahaps more dependencies will be needed from common
 syncsketch = "^1.0"
+# TODO: Remove this dependency once ftrack addon maintains processes
 ftrack-python-api = "^2.5"
+python-dotenv = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

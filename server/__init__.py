@@ -31,6 +31,10 @@ class SyncsketchAddon(BaseServerAddon):
     title = "SyncSketch"
     version = "1.0.0"
     settings_model: Type[SyncsketchSettings] = SyncsketchSettings
+    # TODO: need to make sure image is published to docker hub
+    services = {
+        "processor": {"image": "ynput/ayon-syncsketch-processor:0.0.1"}
+    }
 
     async def get_default_settings(self):
         settings_model_cls = self.get_settings_model()
@@ -58,18 +62,19 @@ class SyncsketchAddon(BaseServerAddon):
     async def create_syncsketch_webhook(self):
         """Create a SyncSketch Webhook for new events.
 
-        The Ayon SynckSketch integration will create an endoint that will listen
+        The Ayon SynckSketch integration will create an end point that will listen
         for events coming from SyncSketch and later process them with the processor.
 
         Here we use the  REST API to check if the webhook exists, and if not, we
         create it.
         """
         addon_settings = await self.get_studio_settings()
-        addon_settings = addon_settings.syncsketch_server_configs[0]
+        addon_settings = addon_settings.syncsketch_server_configs[1]
 
-        # This really doenst work in local
-        ayon_endpoint = f"https://ef8d-2a01-4b00-8101-c100-6228-b39b-b236-c287.ngrok-free.app/api/addons/{self.name}/{self.version}/syncsketch-event"
-        #ayon_endpoint = f"{ayonconfig.http_listen_address}/api/addons/{self.name}/{self.version}/syncsketch-event"
+        # This really doens't work in local
+        # ayon_endpoint = f"https://d674-94-112-206-100.ngrok-free.app/api/addons/{self.name}/{self.version}/syncsketch-event"
+        # TODO: make this overridable via environment variable so we can test locally example here ^
+        ayon_endpoint = f"{ayonconfig.http_listen_address}/api/addons/{self.name}/{self.version}/syncsketch-event"
 
         if not addon_settings:
             logging.error(f"Unable to get Studio Settings: {self.name} addon.")

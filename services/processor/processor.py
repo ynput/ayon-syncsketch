@@ -22,12 +22,24 @@ class SyncSketchProcessor:
         logging.info("Initializing the SyncSketch Processor.")
 
         try:
+            # TODO: Get the Ftrack Addon settings needs to be validated
+            #       for particular version
+            # TODO: jakub.trllo@gmail.com is implementing new server secrets
+            self.ftrack_settings = ayon_api.get_addon_settings(
+                "ftrack",
+                "0.0.1"
+            )
+
+            # TODO: move this to separate function
+            #       so project related settings can be queried
             self.settings = ayon_api.get_addon_settings(
                 os.environ["AYON_ADDON_NAME"],
                 os.environ["AYON_ADDON_VERSION"]
-            )["syncsketch_server_configs"][0]
+            )["syncsketch_server_configs"][1]
 
             self.sk_url = self.settings["url"]
+            # TODO: jakub.trllo@gmail.com is implementing new server secrets
+            #       for Ftrack
             self.sk_auth_token = self.settings["auth_token"]
             self.sk_auth_username = self.settings["auth_user"]
 
@@ -37,6 +49,8 @@ class SyncSketchProcessor:
             raise e
 
         try:
+            # TODO: rather then official api use our future common server handler
+            # TODO: implement it with server secrets
             self.sk_session = SyncSketchAPI(self.sk_auth_username, self.sk_auth_token)
             self.sk_session.is_connected()
 
@@ -46,13 +60,15 @@ class SyncSketchProcessor:
             raise e
 
         # Need to think if we require the Ftrack Addon?
-        # Or allow peopel to specify ftrack info though this addon too?
+        # Or allow people to specify ftrack info though this addon too?
         # THIS WILL FAIL
         try:
             self.ft_session = ftrack_api.Session(
-                server_url=self.settings["ftrack_url"],
-                api_key=self.settings["ftrack_api_key"],
-                api_user=self.settings["ftrack_api_username"]
+                server_url=self.ftrack_settings["ftrack_server"],
+                api_key=self.ftrack_settings["service_settings"]["api_key"],
+                api_user=self.ftrack_settings["service_settings"]["username"],
+                # QUESTION: should we cash it or not? jakub.trllo@gmail.com
+                schema_cache_path=False
             )
 
         except Exception as e:
@@ -72,6 +88,8 @@ class SyncSketchProcessor:
         while True:
             logging.info("Querying for new `syncsketch.event` events...")
             try:
+                # TODO: should't we split this into leech event
+                #       and processing event?
                 event = ayon_api.enroll_event_job(
                     "syncsketch.event",
                     "syncsketch.proc",
@@ -236,5 +254,3 @@ class SyncSketchProcessor:
                     logging.error("Selection has to be a list, ignoring.")
 
             return self.ft_session.query(query).one()
-
-
