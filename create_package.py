@@ -297,8 +297,8 @@ if __name__ == "__main__":
         dest="skip_zip",
         action="store_true",
         help=(
-            "Directory path where package will be created"
-            " (Will be purged if already exists!)"
+            "Skip zipping server package and create only"
+            " server folder structure."
         )
     )
     parser.add_argument(
@@ -306,8 +306,7 @@ if __name__ == "__main__":
         dest="keep_sources",
         action="store_true",
         help=(
-            "Directory path where package will be created"
-            " (Will be purged if already exists!)"
+            "Keep folder structure when server package is created."
         )
     )
     parser.add_argument(
