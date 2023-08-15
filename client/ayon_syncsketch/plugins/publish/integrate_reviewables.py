@@ -12,7 +12,7 @@ from openpype.lib import (
     StringTemplate,
     BoolDef
 )
-from openpype_modules.ayon_syncsketch.api.server_handler import ServerCommunication
+from openpype_modules.ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
 import requests
 
 

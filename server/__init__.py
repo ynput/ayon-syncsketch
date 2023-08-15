@@ -13,6 +13,7 @@ from .settings import SyncsketchSettings, DEFAULT_VALUES
 from fastapi import Request
 from nxtools import logging
 import requests
+from .version import __version__
 
 
 class SyncsketchRequestModel(OPModel):
@@ -29,11 +30,11 @@ class SyncsketchRequestModel(OPModel):
 class SyncsketchAddon(BaseServerAddon):
     name = "syncsketch"
     title = "SyncSketch"
-    version = "1.0.0"
+    version = __version__
     settings_model: Type[SyncsketchSettings] = SyncsketchSettings
     # TODO: need to make sure image is published to docker hub
     services = {
-        "processor": {"image": "ynput/ayon-syncsketch-processor:0.0.1"}
+        "processor": {"image": f"ynput/ayon-syncsketch-processor:{version}"}
     }
 
     async def get_default_settings(self):

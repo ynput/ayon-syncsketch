@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Validate a SyncSketch connection."""
 import pyblish.api
-from openpype_modules.ayon_syncsketch.api.server_handler import ServerCommunication
+from openpype_modules.ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
 import requests
 
 

@@ -6,6 +6,7 @@ from openpype.modules import (
     IPluginPaths,
 )
 from ayon_api import get_addon_project_settings
+from .version import __version__
 
 SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -13,9 +14,7 @@ SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
     name = "syncsketch"
     enabled = True
-
-    # TODO: replace constant with dynamic version
-    version = "1.0.0"
+    version = __version__
 
     def get_syncsketch_project_active_config(self, project_name):
         """ Returns the active SyncSketch config for the current project """
