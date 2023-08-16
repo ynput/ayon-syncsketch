@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# TODO: this needs to be distributed via `create_package.py` from
-#       addon common folder
 
 import json
 import os
