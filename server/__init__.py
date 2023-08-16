@@ -1,3 +1,4 @@
+import os
 import json
 import socket
 from typing import Type, Any
@@ -10,15 +11,14 @@ from ayon_server.types import OPModel
 
 from .settings import SyncsketchSettings, DEFAULT_VALUES
 
-from fastapi import Request
 from nxtools import logging
 import requests
 from .version import __version__
 
 
 class SyncsketchRequestModel(OPModel):
-    """ TODO: Once we get the corerct acces for the SyncSketch API implement a proper
-        model to handle the webhook POST paylaod.
+    """ TODO: Once we get the correct access for the SyncSketch API implement
+        a proper model to handle the webhook POST payload.
     """
     account: dict[str, Any]
     action: str
@@ -63,36 +63,46 @@ class SyncsketchAddon(BaseServerAddon):
     async def create_syncsketch_webhook(self):
         """Create a SyncSketch Webhook for new events.
 
-        The Ayon SynckSketch integration will create an end point that will listen
-        for events coming from SyncSketch and later process them with the processor.
+        The Ayon SyncSketch integration will create an end point
+        that will listen for events coming from SyncSketch and later
+        process them with the processor.
 
-        Here we use the  REST API to check if the webhook exists, and if not, we
-        create it.
+        Here we use the  REST API to check if the webhook exists, and if not,
+        we create it.
         """
         addon_settings = await self.get_studio_settings()
         addon_settings = addon_settings.syncsketch_server_configs[1]
 
-        # This really doens't work in local
-        # ayon_endpoint = f"https://d674-94-112-206-100.ngrok-free.app/api/addons/{self.name}/{self.version}/syncsketch-event"
-        # TODO: make this overridable via environment variable so we can test locally example here ^
-        ayon_endpoint = f"{ayonconfig.http_listen_address}/api/addons/{self.name}/{self.version}/syncsketch-event"
+        # is manageable via server env variable AYON_HTTP_LISTEN_ADDRESS
+        ayon_endpoint = (f"{ayonconfig.http_listen_address}/api/addons/"
+                         f"{self.name}/{self.version}/syncsketch-event")
 
         if not addon_settings:
             logging.error(f"Unable to get Studio Settings: {self.name} addon.")
             return
 
-        if not all((addon_settings.url, addon_settings.auth_token, addon_settings.auth_user, addon_settings.account_id)):
+        if not all((
+            addon_settings.url, addon_settings.auth_token,
+            addon_settings.auth_user, addon_settings.account_id
+        )):
             logging.error("Missing data in the Addon settings.")
             return
 
-        sk_endpoint = f"{addon_settings.url}/api/v2/notifications/{addon_settings.account_id}/webhooks/"
+        syncsketch_endpoint = (
+            f"{addon_settings.url}/api/v2/notifications/"
+            f"{addon_settings.account_id}/webhooks/"
+        )
 
         headers = {
-            "Authorization": f"apikey {addon_settings.auth_user}:{addon_settings.auth_token}",
+            "Authorization": (
+                f"apikey {addon_settings.auth_user}:"
+                "{addon_settings.auth_token}"
+            ),
             "Content-Type": "application/json",
         }
 
-        existing_webhooks = requests.request("GET", sk_endpoint, headers=headers)
+        existing_webhooks = requests.request(
+            "GET", syncsketch_endpoint, headers=headers)
 
         if existing_webhooks.status_code == 400:
             logging.error(existing_webhooks.json())
@@ -100,14 +110,17 @@ class SyncsketchAddon(BaseServerAddon):
 
         if existing_webhooks.json():
             for webhook in existing_webhooks.json():
-                if webhook.get("url") == ayon_endpoint and webhook.get("type") == "all":
+                if (
+                    webhook.get("url") == ayon_endpoint
+                    and webhook.get("type") == "all"
+                ):
                     logging.info(f"AYON Webhook already exists: {webhook}")
                     return
 
         # Create the Webhook that sends an event when a session ends
         webhook_created = requests.request(
             "POST",
-            sk_endpoint,
+            syncsketch_endpoint,
             headers=headers,
             data=json.dumps({
                 "url": ayon_endpoint,
@@ -116,18 +129,21 @@ class SyncsketchAddon(BaseServerAddon):
         )
 
         if webhook_created.status_code != 200:
-            logging.info("Something went wrong when trying to create the Webhook.")
+            logging.info(
+                "Something went wrong when trying to create the Webhook.")
             raise ValueError(webhook_created.json())
 
         logging.info(
-            f"Succesfully created a Webhook in SyncSketch {webhook_created.json()}"
+            "Successfully created a Webhook in "
+            f"SyncSketch {webhook_created.json()}"
         )
 
     async def _syncsketch_event(self, request: SyncsketchRequestModel):
         """Dispatch an Ayon event from a SyncSketch one.
         """
         if request.action == "review_session_end":
-            logging.info(f"A Review Session ended, dispatching event for {request}.")
+            logging.info(
+                f"A Review Session ended, dispatching event for {request}.")
             project_name = request.project["name"]
 
             event_id = await dispatch_event(
@@ -135,7 +151,8 @@ class SyncsketchAddon(BaseServerAddon):
                 sender=socket.gethostname(),
                 project=project_name,
                 user="",
-                description=f"SyncSketch Review {request.review['name']} ended.",
+                description=(
+                    f"SyncSketch Review {request.review['name']} ended."),
                 summary=None,
                 payload={
                     "action": "review_session_end",
@@ -146,7 +163,8 @@ class SyncsketchAddon(BaseServerAddon):
             logging.info(f"Dispatched event {event_id}")
             return event_id
 
-        logging.warning("Received a SyncSketch event that we don't handle. {request}")
+        logging.warning(
+            "Received a SyncSketch event that we don't handle. {request}")
 
     async def create_applications_attribute(self) -> bool:
         """Make sure there are required attributes which ftrack addon needs.
@@ -194,18 +212,17 @@ class SyncsketchAddon(BaseServerAddon):
                 "    data = $4",
             )
         )
-        if not id_matches:
-            # Reuse position from found attribute
-            if id_match_position is None:
-                id_match_position = position
-                position += 1
+        # Reuse position from found attribute
+        if id_match_position is None:
+            id_match_position = position
+            position += 1
 
-            await Postgres.execute(
-                postgres_query,
-                id_attrib_name,
-                id_match_position,
-                id_scope,
-                id_attribute_data,
-            )
+        await Postgres.execute(
+            postgres_query,
+            id_attrib_name,
+            id_match_position,
+            id_scope,
+            id_attribute_data,
+        )
 
         return True
