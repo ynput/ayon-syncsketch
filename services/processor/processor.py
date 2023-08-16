@@ -80,7 +80,7 @@ class SyncSketchProcessor:
         """ Main loop enrolling on AYON events.
 
         We look for events of the topic `syncsketch.event` and process them by issuing
-        events of topic `syncsketch.proc` which run the `_upload_sk_notes_to_ftrack`
+        events of topic `syncsketch.proc` which run the `_upload_review_notes_to_ftrack`
         method against the event payload.
         """
         logging.info("Start enrolling for Ayon `syncsketch.event` Events...")
@@ -88,8 +88,6 @@ class SyncSketchProcessor:
         while True:
             logging.info("Querying for new `syncsketch.event` events...")
             try:
-                # TODO: should't we split this into leech event
-                #       and processing event?
                 event = ayon_api.enroll_event_job(
                     "syncsketch.event",
                     "syncsketch.proc",
@@ -113,7 +111,7 @@ class SyncSketchProcessor:
 
                 try:
                     logging.info(f"Procesing event: {payload}")
-                    self._upload_sk_notes_to_ftrack(payload)
+                    self._upload_review_notes_to_ftrack(payload)
 
                 except Exception as e:
                     logging.error(f"Unable to process handler {payload}")
@@ -128,10 +126,10 @@ class SyncSketchProcessor:
             except Exception as err:
                 log_traceback(err)
 
-    def _upload_sk_notes_to_ftrack(self, payload):
+    def _upload_review_notes_to_ftrack(self, payload):
         """ Update an FTrack task with SyncSketch notes.
 
-        The payload contains a SyncSketch reveiw, which we use to find the
+        The payload contains a SyncSketch review, which we use to find the
         associated Ayon entity, and through that the FTrack AssetVersion and
         Task, if all is found, we try to update the Task's notes with the ones
         from SyncSketch that are not already there.
