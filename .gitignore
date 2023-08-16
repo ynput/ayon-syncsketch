@@ -159,3 +159,8 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# development environment
+server/version.py
+server/common/
+client/ayon_syncsketch/common/
