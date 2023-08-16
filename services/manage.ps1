@@ -5,7 +5,7 @@ $script_dir_rel = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 $script_dir = (Get-Item $script_dir_rel).FullName
 
 $IMAGE_NAME = "ynput/ayon-syncsketch-processor"
-$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(r'$($script_dir)/../../version.py');exec(f.read(),content);f.close();print(content['__version__'])"""
+$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../version.py'));exec(f.read(),content);f.close();print(content['__version__'])"""
 $IMAGE_FULL_NAME = "$($IMAGE_NAME):$($ADDON_VERSION)"
 
 function defaultfunc {
@@ -28,11 +28,11 @@ function defaultfunc {
 }
 
 function build {
-  & Copy-Item -r "$current_dir/../syncsketch_common" .
+  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/common"
   try {
     & docker build -t "$IMAGE_FULL_NAME" .
   } finally {
-    & Remove-Item -Recurse -Force "$current_dir/syncsketch_common"
+    & Remove-Item -Recurse -Force "$current_dir/processor/common"
   }
 }
 
@@ -46,33 +46,19 @@ function dist {
   docker push "$IMAGE_FULL_NAME"
 }
 
-function dot_env_loading {
-  $env_path = "$($current_dir)/.env"
-  if (Test-Path $env_path) {
-    Get-Content $env_path `
-    | ForEach-Object {
-      $name, $value = $_.split("=")
-      if (-not([string]::IsNullOrWhiteSpace($name) || $name.Contains("#"))) {
-        Set-Content env:\$name $value
-      }
-    }
-  }
-}
-
 function dev {
-  dot_env_loading
-  & Copy-Item -r "$current_dir/../syncsketch_common" .
+  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/common"
   try {
     & docker run --rm -u ayonuser -ti `
       -v "$($current_dir):/service:Z"`
-      --env-file "$($env_path)" `
+      --env-file "$($current_dir)/.env" `
       --attach=stdin `
       --attach=stdout `
       --attach=stderr `
       --network=host `
-      "$IMAGE_FULL_NAME" python -m processor
+      "$($IMAGE_FULL_NAME)" python -m processor
   } finally {
-    & Remove-Item -Recurse -Force "$current_dir/syncsketch_common"
+    & Remove-Item -Recurse -Force "$current_dir/processor/common"
   }
 }
 

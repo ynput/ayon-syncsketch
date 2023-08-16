@@ -3,9 +3,9 @@ VERSION=$(shell python -c "import os;import sys;content={};f=open('$(CURDIR)/../
 IMAGE := ynput/ayon-syncsketch-processor:$(VERSION)
 
 build:
-	cp -r ../../syncsketch_common .
+	cp -r ../syncsketch_common $(CURDIR)/processor/common
 	docker build -t $(IMAGE) .
-	rm -rf syncsketch_common
+	rm -rf $(CURDIR)/processor/common
 
 clean:
 	if docker images | grep $(IMAGE); then \
@@ -16,7 +16,7 @@ clean-build: clean
 	docker build --no-cache -t $(IMAGE) .
 
 dev:
-	cp -r ../../ftrack_common .
+	cp -r ../syncsketch_common $(CURDIR)/processor/common
 	docker run --rm -u ayonuser -ti \
 		-v $(CURDIR):/service:Z \
 		--env-file .env \
@@ -25,6 +25,7 @@ dev:
 		--attach=stderr \
 		--network=host \
 		$(IMAGE) python -m processor
+	rm -rf $(CURDIR)/processor/common
 
 
 shell:
