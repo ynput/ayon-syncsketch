@@ -30,7 +30,6 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
 
 
     review_list = "Uploads from Ayon"
-    # TODO: refactor code so extension is not part of template string
     review_item_name_template = "{asset} | {task[name]} | v{version} .{ext}"
     representation_tag = "syncsketchreview"
 
@@ -93,8 +92,8 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         ):
         """Update version entity with review item ID."""
         data = {
-            # TODO: do not add name with extension (duplicity issue)
-            "name": review_item_name,
+            # updating name without extension (duplicity issue)
+            "name": os.path.splitext(review_item_name)[0],
             "metadata": json.dumps({"ayonVersionID": version_entity["_id"]})
         }
         self.log.debug("Version entity id: {}".format(version_entity["_id"]))
