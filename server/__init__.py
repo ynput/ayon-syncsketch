@@ -3,6 +3,9 @@ import json
 import socket
 from typing import Type, Any
 
+import requests
+from nxtools import logging
+
 from ayon_server.addons import BaseServerAddon
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event
@@ -10,9 +13,6 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
 
 from .settings import SyncsketchSettings, DEFAULT_VALUES
-
-from nxtools import logging
-import requests
 from .version import __version__
 
 
@@ -24,7 +24,6 @@ class SyncsketchRequestModel(OPModel):
     action: str
     review: dict[str, Any]
     project: dict[str, Any]
-
 
 
 class SyncsketchAddon(BaseServerAddon):
@@ -71,32 +70,34 @@ class SyncsketchAddon(BaseServerAddon):
         we create it.
         """
         addon_settings = await self.get_studio_settings()
-        addon_settings = addon_settings.syncsketch_server_configs[1]
+        syncsk_server_config = addon_settings.syncsketch_server_config
 
         # is manageable via server env variable AYON_HTTP_LISTEN_ADDRESS
         ayon_endpoint = (f"{ayonconfig.http_listen_address}/api/addons/"
                          f"{self.name}/{self.version}/syncsketch-event")
 
-        if not addon_settings:
+        if not syncsk_server_config:
             logging.error(f"Unable to get Studio Settings: {self.name} addon.")
             return
 
         if not all((
-            addon_settings.url, addon_settings.auth_token,
-            addon_settings.auth_user, addon_settings.account_id
+            syncsk_server_config.url,
+            syncsk_server_config.auth_token,
+            syncsk_server_config.auth_user,
+            syncsk_server_config.account_id,
         )):
             logging.error("Missing data in the Addon settings.")
             return
 
         syncsketch_endpoint = (
-            f"{addon_settings.url}/api/v2/notifications/"
-            f"{addon_settings.account_id}/webhooks/"
+            f"{syncsk_server_config.url}/api/v2/notifications/"
+            f"{syncsk_server_config.account_id}/webhooks/"
         )
 
         headers = {
             "Authorization": (
-                f"apikey {addon_settings.auth_user}:"
-                "{addon_settings.auth_token}"
+                f"apikey {syncsk_server_config.auth_user}:"
+                f"{syncsk_server_config.auth_token}"
             ),
             "Content-Type": "application/json",
         }

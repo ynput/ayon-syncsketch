@@ -1,6 +1,7 @@
 from pydantic import Field, validator
 
 from ayon_server.settings import BaseSettingsModel, ensure_unique_names
+from ayon_server.settings.enum import secrets_enum
 
 from .publish_plugins import (
     PublishPluginsModel,
@@ -9,20 +10,26 @@ from .publish_plugins import (
 
 
 class ServerListSubmodel(BaseSettingsModel):
-    active: bool = Field(title="Active")
-    name: str = Field(title="Name")
     url: str = Field(title="Value")
-    auth_user: str = Field(title="Auth User")
-    auth_token: str = Field(title="Auth Token")
-    auth_user: str = Field(title="Auth Username")
-    account_id: str = Field(title="Account ID")
+    auth_user: str = Field(
+        enum_resolver=secrets_enum,
+        title="Auth Username"
+    )
+    auth_token: str = Field(
+        enum_resolver=secrets_enum,
+        title="Auth Token"
+    )
+    account_id: str = Field(
+        enum_resolver=secrets_enum,
+        title="Account ID"
+    )
 
 
 class SyncsketchSettings(BaseSettingsModel):
 
-    syncsketch_server_configs:  list[ServerListSubmodel] = Field(
-        default_factory=list,
-        title="SyncSketch server configs",
+    syncsketch_server_config:  ServerListSubmodel = Field(
+        default_factory=ServerListSubmodel,
+        title="SyncSketch server config",
     )
 
     publish: PublishPluginsModel = Field(
@@ -30,22 +37,14 @@ class SyncsketchSettings(BaseSettingsModel):
         title="Publish Plugins",
     )
 
-    @validator("syncsketch_server_configs")
-    def validate_unique_names(cls, value):
-        ensure_unique_names(value)
-        return value
 
 
 DEFAULT_VALUES = {
-    "syncsketch_server_configs": [
-        {
-            "active": True,
-            "name": "default",
-            "url": "https://www.syncsketch.com",
-            "auth_token": "",
-            "auth_user": "",
-            "account_id": "",
-        }
-    ],
+    "syncsketch_server_config": {
+        "url": "https://www.syncsketch.com",
+        "auth_token": "",
+        "auth_user": "",
+        "account_id": "",
+    },
     "publish": DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS
 }

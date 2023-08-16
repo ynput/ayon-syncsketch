@@ -13,6 +13,7 @@ import ayon_api
 import ftrack_api
 from nxtools import logging, log_traceback
 from syncsketch import SyncSketchAPI
+from .common.server_handler import ServerCommunication
 
 
 class SyncSketchProcessor:
@@ -35,13 +36,11 @@ class SyncSketchProcessor:
             self.settings = ayon_api.get_addon_settings(
                 os.environ["AYON_ADDON_NAME"],
                 os.environ["AYON_ADDON_VERSION"]
-            )["syncsketch_server_configs"][1]
+            )["syncsketch_server_config"]
 
-            self.sk_url = self.settings["url"]
-            # TODO: jakub.trllo@gmail.com is implementing new server secrets
-            #       for Ftrack
-            self.sk_auth_token = self.settings["auth_token"]
-            self.sk_auth_username = self.settings["auth_user"]
+            self.syncsketch_url = self.settings["url"]
+            self.syncsketch_auth_token = self.settings["auth_token"]
+            self.syncsketch_auth_username = self.settings["auth_user"]
 
         except Exception as e:
             logging.error("Unable to get Addon settings from the server.")
@@ -51,8 +50,8 @@ class SyncSketchProcessor:
         try:
             # TODO: rather then official api use our future common server handler
             # TODO: implement it with server secrets
-            self.sk_session = SyncSketchAPI(self.sk_auth_username, self.sk_auth_token)
-            self.sk_session.is_connected()
+            self.syncsketch_session = SyncSketchAPI(self.syncsketch_auth_username, self.syncsketch_auth_token)
+            self.syncsketch_session.is_connected()
 
         except Exception as e:
             logging.error("Unable to connect to SyncSketch API:")
@@ -152,7 +151,7 @@ class SyncSketchProcessor:
         review_media_with_notes = []
         review_id = payload["review"]["id"]
 
-        for media in self.sk_session.get_media_by_review_id(review_id)["objects"]:
+        for media in self.syncsketch_session.get_media_by_review_id(review_id)["objects"]:
             media_dict = {}
 
             ayon_id = media.get("metadata", {}).get("ayonVersionID")
@@ -171,7 +170,7 @@ class SyncSketchProcessor:
             media_dict["ftrack_id"] = ayon_entity.attribs.get("ftrackId")
             media_dict["notes"] = []
 
-            for note in self.sk_session.get_annotations(media["id"], review_id=review_id)["objects"]:
+            for note in self.syncsketch_session.get_annotations(media["id"], review_id=review_id)["objects"]:
                 if not note["text"]:
                     logging.info("Note has no text, most likely it's a sketch.")
                     continue
@@ -186,14 +185,14 @@ class SyncSketchProcessor:
                 review_media_with_notes.append(media_dict)
 
 
-        for sk_media in review_media_with_notes:
-            ayon_entity = ayon_api.get_subset_by_id(sk_media["ayon_id"])
+        for syncsketch_media in review_media_with_notes:
+            ayon_entity = ayon_api.get_subset_by_id(syncsketch_media["ayon_id"])
 
             #Ftrack AssetVersion
             ft_av = self._ft_query_one_by_id(
                 "AssetVersion",
-                sk_media['ftrack_id'],
-                selection=["task_id"]
+                syncsketch_media['ftrack_id'],
+                selection=["tasyncsketch_id"]
             )
 
             if not ft_av:
@@ -202,7 +201,7 @@ class SyncSketchProcessor:
 
             ft_task = self._ft_query_one_by_id(
                 "Task",
-                ft_av['task_id'],
+                ft_av['tasyncsketch_id'],
                 selection=["notes", "notes.author.username", "notes.content"]
             )
 
@@ -211,11 +210,11 @@ class SyncSketchProcessor:
                 for note in ft_task["notes"]
             ]
 
-            for sk_note in sk_media["notes"]:
-                if sk_note not in existing_ftrack_notes:
+            for syncsketch_note in syncsketch_media["notes"]:
+                if syncsketch_note not in existing_ftrack_notes:
                     try:
                         ft_user = self.ft_session.session.query(
-                            f"User where username is {sk_note['username']}"
+                            f"User where username is {syncsketch_note['username']}"
                         ).one()
                     except Exception:
                         # Default to the API user
@@ -225,7 +224,7 @@ class SyncSketchProcessor:
                         )
 
                     new_note = self.ft_session.create('Note', {
-                        'content': sk_note["text"],
+                        'content': syncsketch_note["text"],
                         'author': ft_user
                     })
                     ft_task["notes"].append(new_note)
