@@ -6,12 +6,14 @@ from typing import Type, Any
 import requests
 from nxtools import logging
 
+from ayon_server.secrets import Secrets
 from ayon_server.addons import BaseServerAddon
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
 
+from .common import constants
 from .settings import SyncsketchSettings, DEFAULT_VALUES
 from .version import __version__
 
@@ -36,6 +38,23 @@ class SyncsketchAddon(BaseServerAddon):
         "processor": {"image": f"ynput/ayon-syncsketch-processor:{version}"}
     }
 
+    async def resolved_secrets(self):
+
+        addon_settings = await self.get_studio_settings()
+        syncsk_server_config = addon_settings.syncsketch_server_config
+        syncsk_server_config = dict(syncsk_server_config)
+        all_secrets = await Secrets.all()
+        secrets = dict(dict(all_secrets.items()))
+
+        # resolve all secrets from the server config
+        resolved_secrets = {
+            key_: secrets[syncsk_server_config[key_]]
+            for key_ in constants.required_secret_keys
+            if syncsk_server_config[key_] in secrets
+        }
+
+        return resolved_secrets
+
     async def get_default_settings(self):
         settings_model_cls = self.get_settings_model()
         return settings_model_cls(**DEFAULT_VALUES)
@@ -59,6 +78,7 @@ class SyncsketchAddon(BaseServerAddon):
         )
         logging.info("Added Event Listener Webhook.")
 
+
     async def create_syncsketch_webhook(self):
         """Create a SyncSketch Webhook for new events.
 
@@ -71,6 +91,8 @@ class SyncsketchAddon(BaseServerAddon):
         """
         addon_settings = await self.get_studio_settings()
         syncsk_server_config = addon_settings.syncsketch_server_config
+        all_secrets = await self.resolved_secrets()
+
 
         # is manageable via server env variable AYON_HTTP_LISTEN_ADDRESS
         ayon_endpoint = (f"{ayonconfig.http_listen_address}/api/addons/"
@@ -82,22 +104,26 @@ class SyncsketchAddon(BaseServerAddon):
 
         if not all((
             syncsk_server_config.url,
-            syncsk_server_config.auth_token,
-            syncsk_server_config.auth_user,
-            syncsk_server_config.account_id,
         )):
             logging.error("Missing data in the Addon settings.")
             return
 
+        # make sure all config secrets are present otherwise return
+        # TODO: this is just a workaround until we create correct workflow
+        # for the secrets. We need to first set settings to get secrets.
+        if len(all_secrets.keys()) != len(constants.required_secret_keys):
+            logging.warning("Missing secrets in the server config.")
+            return
+
         syncsketch_endpoint = (
             f"{syncsk_server_config.url}/api/v2/notifications/"
-            f"{syncsk_server_config.account_id}/webhooks/"
+            f"{all_secrets['account_id']}/webhooks/"
         )
 
         headers = {
             "Authorization": (
-                f"apikey {syncsk_server_config.auth_user}:"
-                f"{syncsk_server_config.auth_token}"
+                f"apikey {all_secrets['auth_user']}:"
+                f"{all_secrets['auth_token']}"
             ),
             "Content-Type": "application/json",
         }
@@ -165,7 +191,8 @@ class SyncsketchAddon(BaseServerAddon):
             return event_id
 
         logging.warning(
-            "Received a SyncSketch event that we don't handle. {request}")
+            f"Received a SyncSketch event that we don't handle. {request}"
+        )
 
     async def create_applications_attribute(self) -> bool:
         """Make sure there are required attributes which ftrack addon needs.

@@ -1,6 +1,6 @@
-from pydantic import Field, validator
+from pydantic import Field
 
-from ayon_server.settings import BaseSettingsModel, ensure_unique_names
+from ayon_server.settings import BaseSettingsModel
 from ayon_server.settings.enum import secrets_enum
 
 from .publish_plugins import (
@@ -10,7 +10,8 @@ from .publish_plugins import (
 
 
 class ServerListSubmodel(BaseSettingsModel):
-    url: str = Field(title="Value")
+    url: str = Field(
+        title="SyncSketch Server URL")
     auth_user: str = Field(
         enum_resolver=secrets_enum,
         title="Auth Username"
@@ -22,6 +23,17 @@ class ServerListSubmodel(BaseSettingsModel):
     account_id: str = Field(
         enum_resolver=secrets_enum,
         title="Account ID"
+    )
+    ftrack_url: str = Field(
+        title="FTrack Server URL"
+    )
+    ftrack_api_key: str = Field(
+        enum_resolver=secrets_enum,
+        title="FTrack API Key"
+    )
+    ftrack_username: str = Field(
+        enum_resolver=secrets_enum,
+        title="FTrack Username"
     )
 
 
@@ -45,6 +57,9 @@ DEFAULT_VALUES = {
         "auth_token": "",
         "auth_user": "",
         "account_id": "",
+        "ftrack_url": "",
+        "ftrack_api_key": "",
+        "ftrack_username": "",
     },
     "publish": DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS
 }

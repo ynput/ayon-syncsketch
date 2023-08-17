@@ -12,9 +12,8 @@ import socket
 import ayon_api
 import ftrack_api
 from nxtools import logging, log_traceback
-from syncsketch import SyncSketchAPI
 from .common.server_handler import ServerCommunication
-
+from .common import constants
 
 class SyncSketchProcessor:
     def __init__(self):
@@ -23,24 +22,15 @@ class SyncSketchProcessor:
         logging.info("Initializing the SyncSketch Processor.")
 
         try:
-            # TODO: Get the Ftrack Addon settings needs to be validated
-            #       for particular version
-            # TODO: jakub.trllo@gmail.com is implementing new server secrets
-            self.ftrack_settings = ayon_api.get_addon_settings(
-                "ftrack",
-                "0.0.1"
-            )
 
-            # TODO: move this to separate function
-            #       so project related settings can be queried
-            self.settings = ayon_api.get_addon_settings(
-                os.environ["AYON_ADDON_NAME"],
+            settings = ayon_api.get_addon_settings(
+                "syncsketch",
                 os.environ["AYON_ADDON_VERSION"]
-            )["syncsketch_server_config"]
-
-            self.syncsketch_url = self.settings["url"]
-            self.syncsketch_auth_token = self.settings["auth_token"]
-            self.syncsketch_auth_username = self.settings["auth_user"]
+            )
+            self.syncsk_server_config = settings["syncsketch_server_config"]
+            self.all_resolved_secrets = self.resolved_secrets(
+                self.syncsk_server_config)
+            logging.info(f"Got secrets from Ayon: {self.all_resolved_secrets}")
 
         except Exception as e:
             logging.error("Unable to get Addon settings from the server.")
@@ -48,9 +38,11 @@ class SyncSketchProcessor:
             raise e
 
         try:
-            # TODO: rather then official api use our future common server handler
-            # TODO: implement it with server secrets
-            self.syncsketch_session = SyncSketchAPI(self.syncsketch_auth_username, self.syncsketch_auth_token)
+            self.syncsketch_session = ServerCommunication(
+                self.all_resolved_secrets["auth_user"],
+                self.all_resolved_secrets["auth_token"],
+                host=self.syncsk_server_config["url"],
+            )
             self.syncsketch_session.is_connected()
 
         except Exception as e:
@@ -60,13 +52,13 @@ class SyncSketchProcessor:
 
         # Need to think if we require the Ftrack Addon?
         # Or allow people to specify ftrack info though this addon too?
-        # THIS WILL FAIL
+
         try:
             self.ft_session = ftrack_api.Session(
-                server_url=self.ftrack_settings["ftrack_server"],
-                api_key=self.ftrack_settings["service_settings"]["api_key"],
-                api_user=self.ftrack_settings["service_settings"]["username"],
-                # QUESTION: should we cash it or not? jakub.trllo@gmail.com
+                server_url=self.syncsk_server_config["ftrack_url"],
+                api_key=self.all_resolved_secrets["ftrack_api_key"],
+                api_user=self.all_resolved_secrets["ftrack_username"],
+                # QUESTION: should we cash it or not?
                 schema_cache_path=False
             )
 
@@ -74,6 +66,28 @@ class SyncSketchProcessor:
             logging.error("Unable to connect to Ftrack API:")
             log_traceback(e)
             #raise e
+
+    def resolved_secrets(self, syncsk_server_config):
+        """ Resolve the secrets from the server config.
+
+        Args:
+            syncsk_server_config (dict): The server config dict.
+
+        Returns:
+            dict: The resolved secrets.
+        """
+        # TODO: Abstract this to common so it is also usable in Client
+        all_secrets = ayon_api.get_secrets()
+        secrets = {secret["name"]: secret["value"] for secret in all_secrets}
+
+        # resolve all secrets from the server config
+        resolved_secrets = {
+            key_: secrets[syncsk_server_config[key_]]
+            for key_ in constants.required_secret_keys
+            if syncsk_server_config[key_] in secrets
+        }
+
+        return resolved_secrets
 
     def start_processing(self):
         """ Main loop enrolling on AYON events.
@@ -218,7 +232,8 @@ class SyncSketchProcessor:
                         ).one()
                     except Exception:
                         # Default to the API user
-                        api_username = self.settings["ftrack_api_username"]
+                        api_username = self.all_resolved_secrets[
+                            "ftrack_api_username"]
                         ft_user = self.ft_session.session.query(
                             f"User where username is '{api_username}'"
                         )
