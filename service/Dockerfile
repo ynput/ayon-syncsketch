@@ -27,4 +27,3 @@ COPY . /service
 USER ayonuser
 
 CMD ["python", "-m", "processor"]
-
