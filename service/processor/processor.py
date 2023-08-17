@@ -8,10 +8,11 @@ related events.
 import os
 import time
 import socket
-
+from pprint import pformat
 import ayon_api
 import ftrack_api
 from nxtools import logging, log_traceback
+from py import log
 from .common.server_handler import ServerCommunication
 from .common import constants
 
@@ -99,7 +100,7 @@ class SyncSketchProcessor:
         logging.info("Start enrolling for Ayon `syncsketch.event` Events...")
 
         while True:
-            logging.info("Querying for new `syncsketch.event` events...")
+            logging.info("Querying for 1 new `syncsketch.event` events...")
             try:
                 event = ayon_api.enroll_event_job(
                     "syncsketch.event",
@@ -123,7 +124,7 @@ class SyncSketchProcessor:
                     continue
 
                 try:
-                    logging.info(f"Procesing event: {payload}")
+                    logging.info(f"Processing event: {payload}")
                     self._upload_review_notes_to_ftrack(payload)
 
                 except Exception as e:
@@ -164,11 +165,20 @@ class SyncSketchProcessor:
         """
         review_media_with_notes = []
         review_id = payload["review"]["id"]
+        logging.info(f"Processing review {review_id}")
+        review_items = self.syncsketch_session.get_media_by_review_id(review_id)
 
-        for media in self.syncsketch_session.get_media_by_review_id(review_id)["objects"]:
+        logging.info(f"Review items: {pformat(review_items)}")
+
+        for media in review_items.get("objects", []):
+            logging.info(f"Processing media {media}")
             media_dict = {}
 
-            ayon_id = media.get("metadata", {}).get("ayonVersionID")
+            if media.get("metadata") is None:
+                logging.error(f"Media {media['name']} is missing metadata.")
+                continue
+
+            ayon_id = media["metadata"].get("ayonVersionID")
 
             if not ayon_id:
                 logging.error(f"Media {media['name']} is missing the AYON id.")
