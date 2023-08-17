@@ -167,6 +167,10 @@ def copy_server_content(addon_output_dir, current_dir, log):
             os.path.join(common_dir, "server_handler.py"),
             os.path.join(addon_output_dir, "common", "server_handler.py")
         ),
+        (
+            os.path.join(common_dir, "constants.py"),
+            os.path.join(addon_output_dir, "common", "constants.py")
+        ),
     ]
 
 
@@ -208,6 +212,10 @@ def zip_client_side(addon_package_dir, current_dir, log):
     with ZipFileLongPaths(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
         # Add client code content to zip
         for path, sub_path in find_files_in_subdir(client_dir):
+            if "common" in path:
+                # skip common for case the folder is preset during development
+                print(path, sub_path)
+                continue
             zipf.write(path, sub_path)
 
         for path, sub_path in find_files_in_subdir(common_dir):
