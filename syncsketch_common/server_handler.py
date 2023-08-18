@@ -195,10 +195,11 @@ class ServerCommunication:
                 src_files = new_src_files
 
             self.log.debug("URL: {}, params: {}".format(url, params))
+            self.log.debug("post_data: {}".format(post_data))
 
             result = requests.post(
                 url,
-                data=post_data,
+                json=post_data,
                 files=src_files,
                 params=params,
                 headers=headers
@@ -528,6 +529,8 @@ class ServerCommunication:
             "limit": limit,
             "offset": offset
         }
+        self.log.debug("get_reviews_by_project_id: {}".format(get_params))
+
         return self._get_json_response(
             "/api/{}/review/".format(self.api_version),
             get_data=get_params

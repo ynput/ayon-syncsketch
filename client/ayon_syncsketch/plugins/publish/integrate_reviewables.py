@@ -102,10 +102,13 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         # update review item with version entity ID
         result = server_handler.update_review_item(review_item_id, data)
 
-    def upload_reviewable(self,
-            representations, anatomy_data, server_handler,
-            review_list_id, user_name
-        ):
+        self.log.debug("Review item updated: {}".format(result))
+
+    def upload_reviewable(
+        self,
+        representations, anatomy_data, server_handler,
+        review_list_id, user_name
+    ):
         """Upload reviewable to SyncSketch."""
         # loop representations representations with tag "syncsketchreview"
         for representation in representations:
@@ -144,17 +147,23 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         review_list_id = context.data.get("review_list_id")
         if review_list_id:
             return review_list_id
+        self.log.debug("Syncsketch Project ID: {}".format(project_id))
 
         # get the review list ID from SyncSketch project
         response = server_handler.get_reviews_by_project_id(project_id)
         for review in response["objects"]:
             if review["name"] == self.review_list:
                 review_list_id = review["id"]
+        self.log.debug("Existing Review list ID: {}".format(review_list_id))
+
+        self.log.debug("Review list Name: {}".format(self.review_list))
 
         # if review list not found, create it
         if not review_list_id:
             response = server_handler.create_review(project_id, self.review_list)
             review_list_id = response["id"]
+
+        self.log.debug("Created Review list ID: {}".format(review_list_id))
 
         return review_list_id
 

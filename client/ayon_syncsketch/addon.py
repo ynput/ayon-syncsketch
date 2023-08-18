@@ -17,10 +17,9 @@ class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
 
     def get_syncsketch_config(self, project_name):
         """ Returns the active SyncSketch config for the current project """
-        addon_settings = config.get_addon_project_settings(
+        server_config = config.get_syncsketch_project_config(
             project_name, self.version
         )
-        server_config = addon_settings["syncsketch_server_config"]
 
         # resolve secrets into the server config
         config.merge_resolved_secrets(server_config)
