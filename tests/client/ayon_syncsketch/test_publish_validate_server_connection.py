@@ -21,6 +21,7 @@ class TestPublishValidateServerConnection(PublishTest):
 
     @pytest.fixture
     def mock_context(self, context):
+        # TODO: this is not up to date and needs to be updated
         context.data.update({
             "syncsketchProjectId": "1234567890",
             "syncsketchServerConfig": {

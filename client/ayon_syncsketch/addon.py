@@ -6,6 +6,7 @@ from openpype.modules import (
 from ayon_syncsketch.common import config
 from .version import __version__
 
+
 SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -14,12 +15,17 @@ class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
     enabled = True
     version = __version__
 
-    def get_syncsketch_project_active_config(self, project_name):
+    def get_syncsketch_config(self, project_name):
         """ Returns the active SyncSketch config for the current project """
-
-        return config.get_addon_project_settings(
+        addon_settings = config.get_addon_project_settings(
             project_name, self.version
         )
+        server_config = addon_settings["syncsketch_server_config"]
+
+        # resolve secrets into the server config
+        config.merge_resolved_secrets(server_config)
+
+        return server_config
 
     def get_plugin_paths(self):
         return {

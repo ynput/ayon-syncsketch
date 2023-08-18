@@ -17,10 +17,10 @@ class CollectActiveServerConfig(pyblish.api.ContextPlugin):
             self.log.error("Cannot get Ayon SyncSketch addon.")
             raise AssertionError("Ayon SyncSketch addon not found.")
 
-        # get first active syncsketch server config from settings
+        # get syncsketch server config from settings
         server_config = (
-            syncsketch_addon.get_syncsketch_project_active_config(
-                context.data["project_settings"]
+            syncsketch_addon.get_syncsketch_config(
+                context.data["projectName"]
             )
         )
 
