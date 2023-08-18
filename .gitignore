@@ -166,3 +166,5 @@ server/common/
 client/ayon_syncsketch/common/
 
 service/processor/common/
+
+service/poetry.lock
