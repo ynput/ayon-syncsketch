@@ -12,9 +12,9 @@ from pprint import pformat
 import ayon_api
 import ftrack_api
 from nxtools import logging, log_traceback
-from py import log
 from .common.server_handler import ServerCommunication
-from .common import constants
+from .common.config import get_resolved_secrets
+
 
 class SyncSketchProcessor:
     def __init__(self):
@@ -29,7 +29,7 @@ class SyncSketchProcessor:
                 os.environ["AYON_ADDON_VERSION"]
             )
             self.syncsk_server_config = settings["syncsketch_server_config"]
-            self.all_resolved_secrets = self.resolved_secrets(
+            self.all_resolved_secrets = get_resolved_secrets(
                 self.syncsk_server_config)
             logging.info(f"Got secrets from Ayon: {self.all_resolved_secrets}")
 
@@ -66,29 +66,6 @@ class SyncSketchProcessor:
         except Exception as e:
             logging.error("Unable to connect to Ftrack API:")
             log_traceback(e)
-            #raise e
-
-    def resolved_secrets(self, syncsk_server_config):
-        """ Resolve the secrets from the server config.
-
-        Args:
-            syncsk_server_config (dict): The server config dict.
-
-        Returns:
-            dict: The resolved secrets.
-        """
-        # TODO: Abstract this to common so it is also usable in Client
-        all_secrets = ayon_api.get_secrets()
-        secrets = {secret["name"]: secret["value"] for secret in all_secrets}
-
-        # resolve all secrets from the server config
-        resolved_secrets = {
-            key_: secrets[syncsk_server_config[key_]]
-            for key_ in constants.required_secret_keys
-            if syncsk_server_config[key_] in secrets
-        }
-
-        return resolved_secrets
 
     def start_processing(self):
         """ Main loop enrolling on AYON events.
