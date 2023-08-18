@@ -14,27 +14,21 @@ class ServerListSubmodel(BaseSettingsModel):
         title="SyncSketch Server URL")
     auth_user: str = Field(
         enum_resolver=secrets_enum,
-        title="Auth Username"
-    )
+        title="Auth Username")
     auth_token: str = Field(
         enum_resolver=secrets_enum,
-        title="Auth Token"
-    )
+        title="Auth Token")
     account_id: str = Field(
         enum_resolver=secrets_enum,
-        title="Account ID"
-    )
+        title="Account ID")
     ftrack_url: str = Field(
-        title="FTrack Server URL"
-    )
+        title="FTrack Server URL")
     ftrack_api_key: str = Field(
         enum_resolver=secrets_enum,
-        title="FTrack API Key"
-    )
+        title="FTrack API Key")
     ftrack_username: str = Field(
         enum_resolver=secrets_enum,
-        title="FTrack Username"
-    )
+        title="FTrack Username")
 
 
 class SyncsketchSettings(BaseSettingsModel):
@@ -42,6 +36,7 @@ class SyncsketchSettings(BaseSettingsModel):
     syncsketch_server_config:  ServerListSubmodel = Field(
         default_factory=ServerListSubmodel,
         title="SyncSketch server config",
+        scope=["studio"]
     )
 
     publish: PublishPluginsModel = Field(
