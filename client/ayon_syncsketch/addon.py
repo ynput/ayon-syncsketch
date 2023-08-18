@@ -3,7 +3,7 @@ from openpype.modules import (
     OpenPypeAddOn,
     IPluginPaths,
 )
-from openpype_modules.ayon_syncsketch.common import config
+from ayon_syncsketch.common import config
 from .version import __version__
 
 SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
