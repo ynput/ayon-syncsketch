@@ -781,7 +781,7 @@ class ServerCommunication:
 
     def get_flattened_annotations(self, review_id, item_id,
                                   with_tracing_paper=False,
-                                  return_as_base64=False, api_version=None):
+                                  return_as_base64=False):
         """
         Get flattened annotations of an item in a review.
 
@@ -792,13 +792,10 @@ class ServerCommunication:
                 the response. Defaults to False.
             return_as_base64 (bool, optional): Return the response as base64.
                 Defaults to False.
-            api_version (str, optional): The API version to use.
-                Defaults to None
 
         Returns:
             dict: The response from the API call.
         """
-        api_version = api_version or "v2"
 
         get_data_ = {
             "include_data": 1,
@@ -807,8 +804,8 @@ class ServerCommunication:
             "async": 0
         }
 
-        url = "/api/{}/downloads/flattenedSketches/{}/{}/".format(
-            api_version, review_id, item_id)
+        url = "/api/v2/downloads/flattenedSketches/{}/{}/".format(
+            review_id, item_id)
 
         return self._get_json_response(
             url,
