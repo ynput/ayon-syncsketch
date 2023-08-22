@@ -145,6 +145,7 @@ class SyncsketchAddon(BaseServerAddon):
                     return
 
         # Create the Webhook that sends an event when a session ends
+        # TODO: rewrite this to use HTTPX so it is not io blocking
         webhook_created = requests.request(
             "POST",
             syncsketch_endpoint,

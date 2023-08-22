@@ -39,7 +39,8 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         # get the attribute values from data
         instance.data["attributeValues"] = self.get_attr_values_from_data(
             instance.data)
-        upload_to_syncsketch = instance.data["attributeValues"].get("SyncSketchUpload", True)
+        upload_to_syncsketch = instance.data["attributeValues"].get(
+            "SyncSketchUpload", True)
 
         # skip if instance without representation
         representations = [
