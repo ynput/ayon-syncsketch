@@ -8,10 +8,13 @@ related events.
 import os
 import time
 import socket
+import json
+
 from pprint import pformat
 import ayon_api
 import ftrack_api
 from nxtools import logging, log_traceback
+
 from .common.server_handler import ServerCommunication
 from .common.config import get_resolved_secrets
 
@@ -21,7 +24,7 @@ class SyncSketchProcessor:
         """ Ensure both Ayon, Syncsketch and Ftrack connections are available.
         """
         logging.info("Initializing the SyncSketch Processor.")
-
+        logging.debug(f"AYON_SERVER_URL: {os.environ['AYON_SERVER_URL']}")
         try:
 
             settings = ayon_api.get_addon_settings(
@@ -31,7 +34,6 @@ class SyncSketchProcessor:
             self.syncsk_server_config = settings["syncsketch_server_config"]
             self.all_resolved_secrets = get_resolved_secrets(
                 self.syncsk_server_config)
-            logging.info(f"Got secrets from Ayon: {self.all_resolved_secrets}")
 
         except Exception as e:
             logging.error("Unable to get Addon settings from the server.")
@@ -70,13 +72,14 @@ class SyncSketchProcessor:
     def start_processing(self):
         """ Main loop enrolling on AYON events.
 
-        We look for events of the topic `syncsketch.event` and process them by issuing
-        events of topic `syncsketch.proc` which run the `_upload_review_notes_to_ftrack`
-        method against the event payload.
+        We look for events of the topic `syncsketch.event` and process them by
+        issuing events of topic `syncsketch.proc` which run the `_upload_review_
+        notes_to_ftrack` method against the event payload.
         """
         logging.info("Start enrolling for Ayon `syncsketch.event` Events...")
 
         while True:
+
             logging.info("Querying for 1 new `syncsketch.event` events...")
             try:
                 event = ayon_api.enroll_event_job(
@@ -85,37 +88,43 @@ class SyncSketchProcessor:
                     socket.gethostname(),
                     description="SyncSketch Event processing",
                 )
+            except Exception as err:
+                logging.error(f"Unable to enroll for Ayon events: {err}")
+                time.sleep(1.5)
+                continue
 
-                if not event:
-                    logging.info("No event of origin `syncsketch.event` is pending.")
-                    time.sleep(1.5)
-                    continue
+            if not event:
+                logging.info(
+                    "No event of origin `syncsketch.event` is pending.")
+                time.sleep(1.5)
+                continue
 
+            event_status = "failed"
+            try:
                 source_event = ayon_api.get_event(event["dependsOn"])
                 payload = source_event["payload"]
 
                 if not payload:
                     time.sleep(1.5)
                     ayon_api.update_event(event["id"], status="finished")
-                    ayon_api.update_event(source_event["id"], status="finished")
                     continue
 
-                try:
-                    logging.info(f"Processing event: {payload}")
-                    self._upload_review_notes_to_ftrack(payload)
+                logging.info(f"Processing event: {payload}")
+                self._upload_review_notes_to_ftrack(payload)
 
-                except Exception as e:
-                    logging.error(f"Unable to process handler {payload}")
-                    log_traceback(e)
-                    ayon_api.update_event(event["id"], status="failed")
-                    ayon_api.update_event(source_event["id"], status="failed")
+                logging.info(
+                    "Event has been processed... setting to finished!")
+                event_status = "finished"
 
-                logging.info("Event has been processed... setting to finished!")
-                ayon_api.update_event(event["id"], status="finished")
-                ayon_api.update_event(source_event["id"], status="finished")
+            except ftrack_api.exception.Error:
+                logging.error(f"Unable to process handler {payload}")
 
             except Exception as err:
+                logging.error(f"Unable to process handler {payload}")
                 log_traceback(err)
+
+            finally:
+                ayon_api.update_event(event["id"], status=event_status)
 
     def _upload_review_notes_to_ftrack(self, payload):
         """ Update an FTrack task with SyncSketch notes.
@@ -141,6 +150,8 @@ class SyncSketchProcessor:
             }
         """
         review_id = payload["review"]["id"]
+        project_name = payload["project_name"]
+
         logging.info(f"Processing review {review_id}")
         review_items = self.syncsketch_session.get_media_by_review_id(
             review_id)
@@ -153,18 +164,24 @@ class SyncSketchProcessor:
                 f"Processing review item `{review_id}` media {review_item}")
 
             if review_item.get("metadata") is None:
-                logging.error(
+                logging.warning(
                     f"Media {review_item['name']} is missing metadata.")
                 continue
 
-            ayon_version_id = review_item["metadata"].get("ayonVersionID")
+            # json string to dict and get the ayonVersionID
+            metadata_data = json.loads(review_item["metadata"])
+            ayon_version_id = metadata_data.get("ayonVersionID")
 
             if not ayon_version_id:
                 logging.error(
                     f"Media {review_item['name']} is missing the AYON id.")
                 continue
 
-            ayon_version_entity = ayon_api.get_version_by_id(ayon_version_id)
+            ayon_version_entity = ayon_api.get_version_by_id(
+                project_name, ayon_version_id)
+
+            logging.info(
+                f"AYON version entity: {pformat(ayon_version_entity)}")
 
             if not ayon_version_entity["attrib"].get("ftrackId"):
                 logging.error(
@@ -176,12 +193,18 @@ class SyncSketchProcessor:
                 "notes": [],
             }
             annotations = self.syncsketch_session.get_annotations(
-                review_item["id"], review_id=review_id)
+                review_item["id"],
+                review_id=review_id
+            )
             sketches = self.syncsketch_session.get_flattened_annotations(
-                review_item["id"], review_id=review_id,
-                with_tracing_paper=True, return_as_base64=True)
+                review_item["id"],
+                review_id,
+                with_tracing_paper=True,
+                return_as_base64=True
+            )
             logging.info(f"Annotations: {pformat(annotations)}")
             logging.info(f"Sketches: {pformat(sketches)}")
+
             """
             TODO: we need to group annotations by frame if any
             TODO: we need to reference frame number in the note
@@ -192,7 +215,7 @@ class SyncSketchProcessor:
                     continue
 
                 comment_text = self.get_comment_text(
-                    annotation, ayon_version_entity, payload)
+                    annotation, payload)
                 logging.debug(f"Comment text: {comment_text}")
 
                 media_dict["notes"].append({
@@ -203,12 +226,20 @@ class SyncSketchProcessor:
             if media_dict["notes"]:
                 review_media_with_notes.append(media_dict)
 
-        all_version_ids = [
+        logging.info(
+            f">> review_media_with_notes: {pformat(review_media_with_notes)}")
+
+        all_version_ids = {
             review_media_item["ftrack_id"]
             for review_media_item in review_media_with_notes
-        ]
+        }
+        all_version_ids.discard(None)
+
         ftrack_version_entities = \
             self._get_ftrack_task_entities_by_version_ids(all_version_ids)
+
+        logging.info(
+            f">> ftrack_version_entities: {pformat(ftrack_version_entities)}")
 
         for review_media_item in review_media_with_notes:
             # Ftrack AssetVersion
@@ -241,9 +272,11 @@ class SyncSketchProcessor:
                         # user does not exist in FTrack so we default
                         # to the API user
                         api_username = self.all_resolved_secrets[
-                            "ftrack_api_username"]
+                            "ftrack_username"]
                         ft_user = self._get_ftrack_user_by_username(
                             api_username)
+
+                    logging.debug(f">> ft_user: {ft_user}")
 
                     new_note = self.ft_session.create('Note', {
                         'content': review_media_item_note["text"],
@@ -262,8 +295,8 @@ class SyncSketchProcessor:
         Returns:
             dict: The FTrack user.
         """
-        return self.ft_session.session.query(
-            f"User where username is {username}"
+        return self.ft_session.query(
+            f"User where username is '{username}'"
         ).one()
 
     def _ftrack_query_one_by_id(self, ft_type, id, selection=None):
@@ -303,7 +336,7 @@ class SyncSketchProcessor:
             | ftrack_api.exception.ServerError.
         """
         if not ids:
-            return []
+            return {}
 
         joined_ids = ",".join({
             f'"{entity_id}"' for entity_id in ids
@@ -315,6 +348,8 @@ class SyncSketchProcessor:
                 query = f"select {', '.join(selection)} from {query}"
             else:
                 logging.error("Selection has to be a list, ignoring.")
+
+        logging.info(f"Querying ftrack: {query}")
 
         resulted_output = self.ft_session.query(query).all()
         if not resulted_output:
@@ -343,38 +378,46 @@ class SyncSketchProcessor:
             version_ids,
             selection=["task_id"]
         )
-        task_ids = [
+        logging.info(f"version_entities: {pformat(version_entities)}")
+
+        task_ids = {
             version_entity["task_id"]
             for version_entity in version_entities.values()
-        ]
+        }
+        task_ids.discard(None)
+        logging.info(f"task_ids: {pformat(task_ids)}")
+
+        # TODO: need to query notes as parents separately for
+        # "notes.author.username"
+        # "notes.content"
         task_entities = self._ftrack_query_all_by_ids(
             "Task",
             task_ids,
             selection=[
-                "notes",
-                "notes.author.username",
-                "notes.content",
-                "version_id"
+                "notes"
             ]
         )
+        logging.info(f"task_entities: {pformat(task_entities)}")
+
         # merge task entities into version entities
         for version_entity in version_entities.values():
             version_entity["task"] = task_entities.get(
                 version_entity["task_id"])
 
-    def get_comment_text(self, annotation, ayon_version_entity, payload):
+        return version_entities
+
+    def get_comment_text(self, annotation, payload):
         """ Get the comment text to be uploaded to ftrack.
 
         Args:
             annotation (dict): The SyncSketch annotation.
-            ayon_version_entity (dict): The Ayon Version entity.
             payload (dict): The SyncSketch payload.
 
         Returns:
             str: The comment text.
         """
         return f"""
-{annotation['text']}
-Filepath: {ayon_version_entity.path}
+{annotation['creator']['username']}: {annotation['text']}
+
 SyncSketch link: {payload['review']['link']}
 """
