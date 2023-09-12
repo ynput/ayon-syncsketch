@@ -1,7 +1,8 @@
 import os
 import json
+from pprint import pformat
 import socket
-from typing import Type, Any
+from typing import Optional, Type, Any
 
 import requests
 from nxtools import logging
@@ -12,20 +13,11 @@ from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
+from tomlkit import item
 
 from .common import constants
 from .settings import SyncsketchSettings, DEFAULT_VALUES
 from .version import __version__
-
-
-class SyncsketchRequestModel(OPModel):
-    """ TODO: Once we get the correct access for the SyncSketch API implement
-        a proper model to handle the webhook POST payload.
-    """
-    account: dict[str, Any]
-    action: str
-    review: dict[str, Any]
-    project: dict[str, Any]
 
 
 class SyncsketchAddon(BaseServerAddon):
@@ -166,27 +158,29 @@ class SyncsketchAddon(BaseServerAddon):
             f"SyncSketch {webhook_created.json()}"
         )
 
-    async def _syncsketch_event(self, request: SyncsketchRequestModel):
+    async def _syncsketch_event(self, request: dict[str, Any]):
         """Dispatch an Ayon event from a SyncSketch one.
         """
-        if request.action == "review_session_end":
+
+        if request["action"] in [
+            "review_session_end",
+            "item_approval_status_changed"
+        ]:
             logging.info(
-                f"A Review Session ended, dispatching event for {request}.")
-            project_name = request.project["name"]
+                f"Webhook received with a payload: {pformat(request)}.")
+            project_name = request["project"]["name"]
 
             event_id = await dispatch_event(
-                "syncsketch.event",
+                f"syncsketch.{request['action']}",
                 sender=socket.gethostname(),
                 project=project_name,
                 user="",
                 description=(
-                    f"SyncSketch Review {request.review['name']} ended."),
+                    "SyncSketch source webhook event "
+                    f"\'{request['action']}\' received."
+                ),
                 summary=None,
-                payload={
-                    "action": "review_session_end",
-                    "project_name": project_name,
-                    "review": request.review,
-                },
+                payload=request,
             )
             logging.info(f"Dispatched event {event_id}")
             return event_id
