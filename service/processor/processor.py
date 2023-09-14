@@ -149,7 +149,7 @@ class SyncSketchProcessor:
             finally:
                 ayon_api.update_event(event["id"], status=event_status)
 
-    def _process_item_approval_status_changed(self, payload, to_task=False):
+    def _process_item_approval_status_changed(self, payload):
         """ Update an Ftrack asset version or task with SyncSketch notes.
 
         This is processing particular SyncSketch review item with
@@ -217,7 +217,7 @@ class SyncSketchProcessor:
 
         ftrack_id = review_media_item["ftrack_id"]
         ftrack_version_entities = \
-            self._get_ftrack_task_entities_by_version_ids([ftrack_id], to_task)
+            self._get_ftrack_asset_versions_entities_by_version_ids([ftrack_id])
 
         # Ftrack AssetVersion
         ft_asset_version = ftrack_version_entities.get(ftrack_id)
@@ -235,7 +235,7 @@ class SyncSketchProcessor:
             status_name, project_entity)
 
         self._notes_to_ftrack(
-            ft_asset_version, review_media_item, ftrack_status_id, to_task)
+            ft_asset_version, review_media_item, ftrack_status_id)
 
     def _get_ftrack_status_id_from_name(self, status_name, project_entity):
         """ Get the Ftrack status id from the status name.
@@ -281,7 +281,7 @@ class SyncSketchProcessor:
 
         return project_entity
 
-    def _process_review_session_end(self, payload, to_task=False):
+    def _process_review_session_end(self, payload):
         """ Update an Ftrack task with SyncSketch notes.
 
         The payload contains a SyncSketch review, which we use to find the
@@ -311,8 +311,6 @@ class SyncSketchProcessor:
 
         Args:
             payload (dict): Dict with the `action`, `review` and `project_name`
-            to_task (Optional[bool]): If we want to update the
-                Ftrack Task instead.
 
         Returns:
             None
@@ -347,8 +345,8 @@ class SyncSketchProcessor:
         all_version_ids.discard(None)
 
         ftrack_version_entities = \
-            self._get_ftrack_task_entities_by_version_ids(
-                all_version_ids, to_task)
+            self._get_ftrack_asset_versions_entities_by_version_ids(
+                all_version_ids)
 
         for review_media_item in review_media_with_notes:
             # Ftrack AssetVersion
@@ -367,30 +365,24 @@ class SyncSketchProcessor:
                 status_name, project_entity)
 
             self._notes_to_ftrack(
-                ft_asset_version, review_media_item, ftrack_status_id, to_task)
+                ft_asset_version, review_media_item, ftrack_status_id)
 
     def _notes_to_ftrack(
             self,
-            ft_asset_version,
+            ft_entity,
             review_media_item,
             ftrack_status_id=None,
-            to_task=False,
         ):
         """ Update an Ftrack asset version or task with SyncSketch notes.
 
         Args:
-            ft_asset_version (dict): The Ftrack AssetVersion entity.
+            ft_entity (dict): The Ftrack AssetVersion entity.
             review_media_item (dict): The SyncSketch review media item.
-            to_task (Optional[bool]): If we want to update the Ftrack Task instead.
             ftrack_status_id (Optional[str]): The Ftrack status id.
 
         Returns:
             None
         """
-        if to_task:
-            ft_entity = ft_asset_version["task"]
-        else:
-            ft_entity = ft_asset_version
 
         if ftrack_status_id:
             ft_entity["status_id"] = ftrack_status_id
@@ -459,7 +451,7 @@ class SyncSketchProcessor:
 
             # upload sketch as thumbnail
             component_data = {
-                "version_id ": ft_asset_version["id"],
+                "version_id ": ft_entity["id"],
                 "name": name,
                 "file_type": ext,
             }
@@ -632,16 +624,15 @@ class SyncSketchProcessor:
             for entity in resulted_output
         }
 
-    def _get_ftrack_task_entities_by_version_ids(self, version_ids, to_task=False):
-        """ Get the Ftrack Task entities by the Ayon Version ids.
+    def _get_ftrack_asset_versions_entities_by_version_ids(self, version_ids):
+        """ Get the Ftrack AssetVersion entities by the Ayon Version ids.
 
         Args:
             version_ids (list[str]): The Ayon Version ids.
-            to_task (bool): If we want to get the Ftrack Task along with the
-                AssetVersion.
 
         Returns:
-            dict[str, dict]: The Ftrack Task entities by the Ayon Version ids.
+            dict[str, dict]: The Ftrack AssetVersion
+                entities by the Ayon Version ids.
         """
         if not version_ids:
             return []
@@ -649,33 +640,8 @@ class SyncSketchProcessor:
         version_entities = self._ftrack_query_all_by_ids(
             "AssetVersion",
             version_ids,
-            selection=["task_id"]
+            selection=["notes"]
         )
-
-        if not to_task:
-            # we only need the version entities
-            return version_entities
-
-        task_ids = {
-            version_entity["task_id"]
-            for version_entity in version_entities.values()
-        }
-        task_ids.discard(None)
-
-        # TODO: need to query notes as parents separately for
-        # "notes.author.username" and "notes.content"
-        task_entities = self._ftrack_query_all_by_ids(
-            "Task",
-            task_ids,
-            selection=[
-                "notes"
-            ]
-        )
-
-        # merge task entities into version entities
-        for version_entity in version_entities.values():
-            version_entity["task"] = task_entities.get(
-                version_entity["task_id"])
 
         return version_entities
 
