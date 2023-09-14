@@ -123,11 +123,17 @@ class SyncSketchProcessor:
 
                 # dividing by event_topic so relevant process is called
                 if event_topic == "syncsketch.review_session_end":
-                    logging.info(f"Review session ended event: {payload}.")
+                    logging.info(
+                        "Review session ended "
+                        f"event: {pformat(payload)}."
+                    )
                     self._process_review_session_end(payload)
                 elif event_topic == "syncsketch.item_approval_status_changed":
                     self._process_item_approval_status_changed(payload)
-                    logging.info(f"Item approval status changed event: {payload}.")
+                    logging.info(
+                        "Item approval status changed "
+                        f"event: {pformat(payload)}."
+                    )
 
                 logging.info(
                     "Event has been processed... setting to finished!")
@@ -191,13 +197,15 @@ class SyncSketchProcessor:
 
         review_entity = self.syncsketch_session.get_review_by_id(
             review_id)
-        review_link = review_entity["reviewURL"]
+
+        # duplication of notes were caused by inconsistency of
+        # www. in the url
+        review_link = review_entity["reviewURL"].replace("www.", "")
 
         review_item = self.syncsketch_session.get_review_item(
             review_item_id)
 
         review_link = f"{review_link}#/{review_item_id}"
-        logging.info(f"Review link: {review_link}")
 
         review_media_item = self._get_media_dict(
             review_item, project_name, review_id, review_link)
@@ -207,14 +215,9 @@ class SyncSketchProcessor:
                 f"Unable to find media for review item `{review_item_id}`")
             return
 
-        logging.info(pformat(review_media_item))
-
         ftrack_id = review_media_item["ftrack_id"]
         ftrack_version_entities = \
             self._get_ftrack_task_entities_by_version_ids([ftrack_id], to_task)
-
-        logging.info(
-            f">> ftrack_version_entities: {pformat(ftrack_version_entities)}")
 
         # Ftrack AssetVersion
         ft_asset_version = ftrack_version_entities.get(ftrack_id)
@@ -315,7 +318,9 @@ class SyncSketchProcessor:
             None
         """
         review_id = payload["review"]["id"]
-        review_link = payload["review"]["link"]
+        # duplication of notes were caused by inconsistency of
+        # www. in the url
+        review_link = payload["review"]["link"].replace("www.", "")
         project_name = payload["project"]["name"]
 
         # get ftrack project entity
@@ -325,21 +330,15 @@ class SyncSketchProcessor:
         review_items = self.syncsketch_session.get_media_by_review_id(
             review_id)
 
-        logging.info(f"Review items: {pformat(review_items)}")
-
         review_media_with_notes = []
         for review_item in review_items.get("objects", []):
             review_link_ = f"{review_link}#/{review_item['id']}"
-            logging.info(f"Review link: {review_link_}")
 
             review_media_item = self._get_media_dict(
                 review_item, project_name, review_id, review_link_)
 
             if review_media_item:
                 review_media_with_notes.append(review_media_item)
-
-        logging.info(
-            f">> review_media_with_notes: {pformat(review_media_with_notes)}")
 
         all_version_ids = {
             review_media_item["ftrack_id"]
@@ -350,9 +349,6 @@ class SyncSketchProcessor:
         ftrack_version_entities = \
             self._get_ftrack_task_entities_by_version_ids(
                 all_version_ids, to_task)
-
-        logging.info(
-            f">> ftrack_version_entities: {pformat(ftrack_version_entities)}")
 
         for review_media_item in review_media_with_notes:
             # Ftrack AssetVersion
@@ -400,7 +396,9 @@ class SyncSketchProcessor:
             ft_entity["status_id"] = ftrack_status_id
 
         existing_ftrack_notes = [
-            note["content"]
+            # duplication of notes were caused by inconsistency of
+            # www. in the url
+            note["content"].replace("www.", "")
             for note in ft_entity["notes"]
         ]
 
@@ -441,7 +439,6 @@ class SyncSketchProcessor:
 
             new_note_entity = self.ft_session.create("Note", note_data)
             ft_entity["notes"].append(new_note_entity)
-            # self.ft_session.commit()
 
             sketch_data = review_media_item_note.get("sketch")
             if not sketch_data:
@@ -473,7 +470,6 @@ class SyncSketchProcessor:
                 location=upload_location
             )
 
-            # self.ft_session.commit()
             os.remove(image_name)
 
             # create NoteComponent and use component_entity id
@@ -502,9 +498,6 @@ class SyncSketchProcessor:
 
         ayon_version_entity = ayon_api.get_version_by_id(
             project_name, ayon_version_id)
-
-        logging.info(
-            f"AYON version entity: {pformat(ayon_version_entity)}")
 
         if not ayon_version_entity["attrib"].get("ftrackId"):
             logging.error(
@@ -560,7 +553,6 @@ class SyncSketchProcessor:
             notes_data["text"] = comment_text
 
             # TODO: need to check existing notes in ftrack here
-            logging.debug(f"Notes data: {pformat(notes_data)}")
             media_dict["notes"].append(notes_data)
 
         if media_dict["notes"] != []:
@@ -630,8 +622,6 @@ class SyncSketchProcessor:
             else:
                 logging.error("Selection has to be a list, ignoring.")
 
-        logging.info(f"Querying ftrack: {query}")
-
         resulted_output = self.ft_session.query(query).all()
         if not resulted_output:
             logging.error(f"Unable to find any {ft_type} with ids {ids}.")
@@ -661,7 +651,6 @@ class SyncSketchProcessor:
             version_ids,
             selection=["task_id"]
         )
-        logging.info(f"version_entities: {pformat(version_entities)}")
 
         if not to_task:
             # we only need the version entities
@@ -672,7 +661,6 @@ class SyncSketchProcessor:
             for version_entity in version_entities.values()
         }
         task_ids.discard(None)
-        logging.info(f"task_ids: {pformat(task_ids)}")
 
         # TODO: need to query notes as parents separately for
         # "notes.author.username" and "notes.content"
@@ -683,7 +671,6 @@ class SyncSketchProcessor:
                 "notes"
             ]
         )
-        logging.info(f"task_entities: {pformat(task_entities)}")
 
         # merge task entities into version entities
         for version_entity in version_entities.values():
