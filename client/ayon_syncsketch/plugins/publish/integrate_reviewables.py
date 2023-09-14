@@ -3,6 +3,7 @@
 import os
 import json
 from copy import deepcopy
+from pprint import pformat
 import pyblish.api
 from openpype.pipeline import KnownPublishError
 from openpype.pipeline.publish import (
@@ -10,7 +11,9 @@ from openpype.pipeline.publish import (
 )
 from openpype.lib import (
     StringTemplate,
-    BoolDef
+    BoolDef,
+    filter_profiles,
+    prepare_template_data
 )
 from openpype_modules.ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
 import requests
@@ -28,10 +31,71 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
     order = pyblish.api.IntegratorOrder
     label = "Integrate SyncSketch reviewables"
 
-
-    review_list = "Uploads from Ayon"
-    review_item_name_template = "{asset} | {task[name]} | v{version} .{ext}"
     representation_tag = "syncsketchreview"
+    review_item_profiles = []
+
+    def filter_review_item_profiles(
+            self, family, host_name, task_name, task_type):
+        if self.review_item_profiles is []:
+            return []
+
+        filtering_criteria = {
+            "families": family,
+            "hosts": host_name,
+            "tasks": task_name,
+            "task_types": task_type
+        }
+
+        matching_profile = filter_profiles(
+            self.review_item_profiles, filtering_criteria)
+
+        self.log.debug("Matching profile: {}".format(matching_profile))
+        return matching_profile
+
+    def _format_template(self, instance, template, formatting_data):
+        """Format template with data from instance and anatomy data."""
+
+        nested_keys = ["folder", "task"]
+        fill_pairs_keys = [
+            "variant", "family", "app", "user", "subset",
+            "host", "output", "ext", "name", "short", "version",
+            "type"
+        ]
+
+        def prepare_template_data_pairs(data):
+            """Prepare data for template formatting."""
+            fill_pairs = {}
+            for key, value in data.items():
+                if key in nested_keys and isinstance(value, dict):
+                    self.log.debug("Nested key: {}:{}".format(key, value))
+                    fill_pairs[key] = prepare_template_data_pairs(value)
+                elif key in fill_pairs_keys and isinstance(value, str):
+                    self.log.debug("Key: {}:{}".format(key, value))
+                    fill_pairs.update(prepare_template_data({key: value}))
+                elif key in fill_pairs_keys and not isinstance(value, str):
+                    fill_pairs[key] = value
+            return fill_pairs
+
+        formatting_data = deepcopy(formatting_data)
+        host_name = instance.context.data["hostName"]
+        variant = instance.data["variant"]
+        formatting_data.update({
+            "variant": variant,
+            "app": host_name,
+            "host": host_name
+        })
+
+        formatting_data_pairs = prepare_template_data_pairs(formatting_data)
+        self.log.debug("Formatting data pairs: {}".format(
+            pformat(formatting_data_pairs)
+        ))
+
+        formatted_name = StringTemplate(
+                template).format(formatting_data_pairs)
+
+        self.log.debug("Formatted name: {}".format(formatted_name))
+
+        return formatted_name
 
     def process(self, instance):
         self.log.info("Integrating SyncSketch reviewables...")
@@ -45,7 +109,7 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         # skip if instance without representation
         representations = [
             repre for repre in instance.data.get("representations", [])
-            if repre.get("tags", []) and self.representation_tag in repre["tags"]
+            if repre.get("tags", []) and self.representation_tag in repre["tags"]  # noqa: E501
         ]
         if not representations or not upload_to_syncsketch:
             self.log.info("Skipping SyncSketch publishing: `{}`".format(
@@ -60,26 +124,50 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         version_entity = instance.data["versionEntity"]
         server_handler = self.get_server_handler(context, server_config)
 
+        self.log.debug("Syncsketch Project ID: {}".format(syncsketch_id))
         self.log.debug("Version entity id: {}".format(version_entity["_id"]))
 
         # making sure the server is available
         response = server_handler.is_connected()
         if not response:
-            raise requests.exceptions.ConnectionError("SyncSketch connection failed.")
+            raise requests.exceptions.ConnectionError(
+                "SyncSketch connection failed.")
+
+        # filter review item profiles
+        self.matching_profile = self.filter_review_item_profiles(
+            instance.data["family"],
+            instance.context.data["hostName"],
+            anatomy_data["task"]["name"],
+            anatomy_data["task"]["type"]
+        )
+
+        if not self.matching_profile:
+            raise KnownPublishError(
+                "No matching profile for SyncSketch review item found.")
 
         # get review list the project
-        review_list_id = self.get_review_list_id(context, server_handler, syncsketch_id)
+        review_list_id = self.get_review_list_id(
+            instance, server_handler, syncsketch_id)
 
         self.log.info("Review list ID: {}".format(review_list_id))
 
         review_item_id, review_item_name = self.upload_reviewable(
-            representations, anatomy_data, server_handler, review_list_id, user_name)
+            instance,
+            representations,
+            server_handler,
+            review_list_id,
+            user_name
+        )
 
         # update version entity with review item ID
         if review_item_id:
             # update review item with avalon version entity ID
             self.update_version_entity(
-                server_handler, version_entity, review_item_id, review_item_name)
+                server_handler,
+                version_entity,
+                review_item_id,
+                review_item_name
+            )
 
             version_attributes = instance.data.get("versionAttributes", {})
             version_attributes["syncsketchId"] = review_item_id
@@ -106,11 +194,12 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
         self.log.debug("Review item updated: {}".format(result))
 
     def upload_reviewable(
-        self,
-        representations, anatomy_data, server_handler,
-        review_list_id, user_name
+        self, instance, representations,
+        server_handler, review_list_id, user_name
     ):
         """Upload reviewable to SyncSketch."""
+        anatomy_data = instance.data["anatomyData"]
+
         # loop representations representations with tag "syncsketchreview"
         for representation in representations:
             formatting_data = deepcopy(anatomy_data)
@@ -119,9 +208,29 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
             if representation.get("output"):
                 formatting_data["output"] = representation["output"]
 
+            # solving the review item name
+            review_item_name_template = self.matching_profile[
+                "review_item_name_template"]
+
+            if not review_item_name_template:
+                raise KnownPublishError(
+                    "Name in matching profile for "
+                    "SyncSketch review item not filled. "
+                    "\n\nProfile data: {}".format(
+                        self.matching_profile)
+                )
+
+            self.log.debug("Review item name template: {}".format(
+                review_item_name_template))
+
+            # add extension
+            review_item_name_template = (
+                review_item_name_template + " .{ext}")
+
             # format the file_name template
-            review_item_name = StringTemplate(
-                self.review_item_name_template).format(formatting_data)
+            review_item_name = self._format_template(
+                instance, review_item_name_template, formatting_data
+            )
 
             # get the file path only for single file representations
             file_path = os.path.join(
@@ -142,29 +251,56 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
             # get ID of the uploaded media: response["id"] and review item name
             return response.get("id"), review_item_name
 
-    def get_review_list_id(self, context, server_handler, project_id):
+    def get_review_list_id(self, instance, server_handler, project_id):
         """Get review list ID by name."""
+        context = instance.context
         # get the review list ID from cached context.data if exists
         review_list_id = context.data.get("review_list_id")
         if review_list_id:
+            self.log.debug("Cached Review list ID: {}".format(review_list_id))
             return review_list_id
-        self.log.debug("Syncsketch Project ID: {}".format(project_id))
+
+        # solving the review list name
+        matching_profile_review_list_name = self.matching_profile[
+            "list_name_template"]
+
+        if not matching_profile_review_list_name:
+            raise KnownPublishError(
+                "Name in matching profile for "
+                "SyncSketch review list not filled. "
+                "\n\nProfile data: {}".format(
+                    self.matching_profile)
+            )
+
+        self.log.debug("Review list name template: {}".format(
+                matching_profile_review_list_name))
+
+        # format the review list name template
+        review_list_name = self._format_template(
+            instance,
+            matching_profile_review_list_name,
+            instance.data["anatomyData"]
+        )
+
+        self.log.debug("Review list Name: {}".format(review_list_name))
 
         # get the review list ID from SyncSketch project
         response = server_handler.get_reviews_by_project_id(project_id)
         for review in response["objects"]:
-            if review["name"] == self.review_list:
+            if review["name"] == review_list_name:
                 review_list_id = review["id"]
-        self.log.debug("Existing Review list ID: {}".format(review_list_id))
-
-        self.log.debug("Review list Name: {}".format(self.review_list))
+                self.log.debug(
+                    "Existing Review list ID: {}".format(review_list_id))
+                break
 
         # if review list not found, create it
         if not review_list_id:
-            response = server_handler.create_review(project_id, self.review_list)
+            response = server_handler.create_review(
+                project_id, review_list_name)
             review_list_id = response["id"]
+            self.log.debug("Created Review list ID: {}".format(review_list_id))
 
-        self.log.debug("Created Review list ID: {}".format(review_list_id))
+        context.data["review_list_id"] = review_list_id
 
         return review_list_id
 
