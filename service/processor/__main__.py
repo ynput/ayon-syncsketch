@@ -1,6 +1,8 @@
 import sys
+import os
 
 from .processor import SyncSketchProcessor
+
 from dotenv import load_dotenv
 
 load_dotenv()
