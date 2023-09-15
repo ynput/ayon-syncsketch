@@ -11,13 +11,11 @@ import socket
 import json
 import requests
 import itertools
-from copy import deepcopy
-
 from pprint import pformat
-import ayon_api
-import ftrack_api
 from nxtools import logging, log_traceback
 
+import ayon_api
+import ftrack_api
 
 from .common.server_handler import ServerCommunication
 from .common.config import get_resolved_secrets
@@ -86,8 +84,8 @@ class SyncSketchProcessor:
         """
         logging.info("Start enrolling for Ayon `syncsketch.event` Events...")
         event_handlers = {
-            "syncsketch.review_session_end": self._process_review_session_end, # noqa: E501
-            "syncsketch.item_approval_status_changed": self._process_item_approval_status_changed, # noqa: E501
+            "syncsketch.review_session_end": self.process_review_session_end, # noqa: E501
+            "syncsketch.item_approval_status_changed": self.process_item_approval_status_changed, # noqa: E501
         }
         event_cycle = itertools.cycle(event_handlers.items())
         while True:
@@ -139,7 +137,7 @@ class SyncSketchProcessor:
                 time.sleep(self.event_sleep_time)
                 continue
 
-    def _process_item_approval_status_changed(self, payload):
+    def process_item_approval_status_changed(self, payload):
         """ Update an Ftrack asset version or task with SyncSketch notes.
 
         This is processing particular SyncSketch review item with
@@ -195,37 +193,127 @@ class SyncSketchProcessor:
         review_item = self.syncsketch_session.get_review_item(
             review_item_id)
 
-        review_link = f"{review_link}#/{review_item_id}"
+        ayon_version_ids = self._get_metadata_version_ids(
+            [review_item]
+        )
 
-        review_media_item = self._generate_notes(
-            review_item, project_name, review_id, review_link)
+        self._process_all_versions(
+            ayon_version_ids, review_id, project_name, review_link,
+            status_name=status_name
+        )
 
-        if not review_media_item:
-            logging.error(
-                f"Unable to find media for review item `{review_item_id}`")
-            return
+    def process_review_session_end(self, payload):
+        """ Update an Ftrack task with SyncSketch notes.
 
-        ftrack_id = review_media_item["ftrack_id"]
-        ftrack_version_entities = \
-            self._get_ftrack_asset_versions_entities_by_version_ids([ftrack_id])
+        The payload contains a SyncSketch review, which we use to find the
+        associated Ayon entity, and through that the Ftrack AssetVersion and
+        Task, if all is found, we try to update the Task's notes with the ones
+        from SyncSketch that are not already there.
 
-        # Ftrack AssetVersion
-        ft_asset_version = ftrack_version_entities.get(ftrack_id)
+        Notes are published as the same user as in SyncSketch if the user has the
+        username in Ftrack otherwise it defaults to the API username.
 
-        if not ft_asset_version:
-            logging.error(
-                f"Unable to find Ftrack asset version `{ftrack_id}`")
-            return
+        Payload example:
+            {
+                'action': 'review_session_end',
+                'review': {
+                    'id': 2853840,
+                    'link': 'https://syncsketch.com/sketch/YmU2YTUyZDY4/',
+                    'name': 'Uploads from Ayon'
+                },
+                'account': {
+                    'id': 553271268
+                },
+                'project': {
+                    'id': 310312,
+                    'name': 'SyncSketchTesting'
+                }
+            }
 
-        # get ftrack project entity
-        project_entity = self._ftrack_project_entity(project_name)
+        Args:
+            payload (dict): Dict with the `action`, `review` and `project_name`
 
-        # get ftrack status id from mapped status name
-        ftrack_status_id = self._get_ftrack_status_id_from_name(
-            status_name, project_entity)
+        Returns:
+            None
+        """
+        review_id = payload["review"]["id"]
+        # duplication of notes were caused by inconsistency of
+        # www. in the url
+        review_link = payload["review"]["link"].replace("www.", "")
+        project_name = payload["project"]["name"]
 
-        self._notes_to_ftrack(
-            ft_asset_version, review_media_item, ftrack_status_id)
+        logging.info(f"Processing review {review_id}")
+        review_items = self.syncsketch_session.get_media_by_review_id(
+            review_id)
+
+        ayon_version_ids = self._get_metadata_version_ids(
+            review_items.get("objects", [])
+        )
+        self._process_all_versions(
+            ayon_version_ids, review_id, project_name, review_link)
+
+    def _process_all_versions(
+            self,
+            ayon_version_ids,
+            review_id,
+            project_name,
+            review_link,
+            status_name=None
+        ):
+        """ Update an Ftrack task with SyncSketch notes.
+
+        The payload contains a SyncSketch review, which we use to find the
+
+
+        Args:
+            ayon_version_ids (dict[str, dict]): The Ayon Version ids.
+            review_id (str): The SyncSketch review id.
+            project_name (str): The project name.
+            review_link (str): The SyncSketch review link.
+            status_name (Optional[str]): The SyncSketch review status name.
+
+        Returns:
+            None
+        """
+        version_data_all = self._get_version_data(
+            project_name, ayon_version_ids)
+
+        for _, version_data in version_data_all.items():
+            review_item = version_data["syncsketch_review_item"]
+            review_item_id = review_item["id"]
+            logging.info(f"Processing review item \'{review_item_id}\'...")
+
+            review_link_ = f"{review_link}#/{review_item_id}"
+            ftrack_entity = version_data["ftrack_entity"]
+
+            if not ftrack_entity:
+                ftrack_id = version_data["ftrack_id"]
+                logging.error(
+                    f"Unable to find Ftrack asset version `{ftrack_id}`")
+                continue
+
+            notes = self._generate_notes(
+                version_data, review_id, review_link_)
+
+            if not notes:
+                logging.info(
+                    f"Unable to find notes for review item `{review_item_id}`")
+                continue
+
+            logging.info(
+                f"Ftrack status and notes: \'{review_item_id}\'...")
+
+            # get ftrack project entity
+            project_entity = self._ftrack_project_entity(project_name)
+
+            # get ftrack status id from mapped status name
+            ftrack_status_id = self._get_ftrack_status_id_from_name(
+                status_name or review_item["approval_status"],
+                project_entity
+            )
+
+            self._notes_to_ftrack(
+                ftrack_entity, notes, ftrack_status_id)
 
     def _get_ftrack_status_id_from_name(self, status_name, project_entity):
         """ Get the Ftrack status id from the status name.
@@ -303,93 +391,6 @@ class SyncSketchProcessor:
             )
 
         return project_entity
-
-    def _process_review_session_end(self, payload):
-        """ Update an Ftrack task with SyncSketch notes.
-
-        The payload contains a SyncSketch review, which we use to find the
-        associated Ayon entity, and through that the Ftrack AssetVersion and
-        Task, if all is found, we try to update the Task's notes with the ones
-        from SyncSketch that are not already there.
-
-        Notes are published as the same user as in SyncSketch if the user has the
-        username in Ftrack otherwise it defaults to the API username.
-
-        Payload example:
-            {
-                'action': 'review_session_end',
-                'review': {
-                    'id': 2853840,
-                    'link': 'https://syncsketch.com/sketch/YmU2YTUyZDY4/',
-                    'name': 'Uploads from Ayon'
-                },
-                'account': {
-                    'id': 553271268
-                },
-                'project': {
-                    'id': 310312,
-                    'name': 'SyncSketchTesting'
-                }
-            }
-
-        Args:
-            payload (dict): Dict with the `action`, `review` and `project_name`
-
-        Returns:
-            None
-        """
-        review_id = payload["review"]["id"]
-        # duplication of notes were caused by inconsistency of
-        # www. in the url
-        review_link = payload["review"]["link"].replace("www.", "")
-        project_name = payload["project"]["name"]
-
-        # get ftrack project entity
-        project_entity = self._ftrack_project_entity(project_name)
-
-        logging.info(f"Processing review {review_id}")
-        review_items = self.syncsketch_session.get_media_by_review_id(
-            review_id)
-
-        ayon_version_ids = self._get_metadata_version_ids(
-            review_items.get("objects", [])
-        )
-
-        version_data_all = self._get_version_data(
-            project_name, ayon_version_ids)
-
-        for _, version_data in version_data_all.items():
-            review_item = version_data["syncsketch_review_item"]
-            review_item_id = review_item["id"]
-            logging.info(f"Processing review item \'{review_item_id}\'...")
-
-            review_link_ = f"{review_link}#/{review_item_id}"
-            ftrack_entity = version_data["ftrack_entity"]
-
-            if not ftrack_entity:
-                ftrack_id = version_data["ftrack_id"]
-                logging.error(
-                    f"Unable to find Ftrack asset version `{ftrack_id}`")
-                continue
-
-            notes = self._generate_notes(
-                version_data, review_id, review_link_)
-
-            if not notes:
-                logging.info(
-                    f"Unable to find notes for review item `{review_item_id}`")
-                continue
-
-            logging.info(
-                f"Ftrack status and notes: \'{review_item_id}\'...")
-
-            status_name = review_item["approval_status"]
-            # get ftrack status id from mapped status name
-            ftrack_status_id = self._get_ftrack_status_id_from_name(
-                status_name, project_entity)
-
-            self._notes_to_ftrack(
-                ftrack_entity, notes, ftrack_status_id)
 
     def _notes_to_ftrack(
             self,
