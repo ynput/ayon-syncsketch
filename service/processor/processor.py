@@ -10,6 +10,7 @@ import time
 import socket
 import json
 import requests
+import itertools
 from copy import deepcopy
 
 from pprint import pformat
@@ -17,12 +18,14 @@ import ayon_api
 import ftrack_api
 from nxtools import logging, log_traceback
 
+
 from .common.server_handler import ServerCommunication
 from .common.config import get_resolved_secrets
 
 
 class SyncSketchProcessor:
     ftrack_statuses = None
+    event_sleep_time = 0.5
 
     def __init__(self):
         """ Ensure both Ayon, Syncsketch and Ftrack connections are available.
@@ -82,72 +85,59 @@ class SyncSketchProcessor:
         notes_to_ftrack` method against the event payload.
         """
         logging.info("Start enrolling for Ayon `syncsketch.event` Events...")
-        events_topics = [
-            "syncsketch.review_session_end",
-            "syncsketch.item_approval_status_changed",
-        ]
+        event_handlers = {
+            "syncsketch.review_session_end": self._process_review_session_end, # noqa: E501
+            "syncsketch.item_approval_status_changed": self._process_item_approval_status_changed, # noqa: E501
+        }
+        event_cycle = itertools.cycle(event_handlers.items())
         while True:
             event_topic = None
             try:
-                for event_topic in events_topics:
-                    logging.info(
-                        f"Querying for 1 new `{event_topic}` from events...")
-                    event = ayon_api.enroll_event_job(
-                        event_topic,
-                        "syncsketch.proc",
-                        socket.gethostname(),
-                        description=f"\'{event_topic}\' processing",
-                    )
-                    if event:
-                        break
-            except Exception as err:
-                logging.error(f"Unable to enroll for Ayon events: {err}")
-                time.sleep(1.5)
-                continue
-
-            if not event:
+                event_topic, handler = next(event_cycle)
                 logging.info(
-                    f"No event of origin `{event_topic}` is pending.")
-                time.sleep(1.5)
-                continue
-
-            event_status = "failed"
-            try:
-                source_event = ayon_api.get_event(event["dependsOn"])
-                payload = source_event["payload"]
-
-                if not payload:
-                    time.sleep(1.5)
-                    ayon_api.update_event(event["id"], status="finished")
+                    f"Querying event `{event_topic}` from events...")
+                event = ayon_api.enroll_event_job(
+                    event_topic,
+                    "syncsketch.proc",
+                    socket.gethostname(),
+                    description=f"\'{event_topic}\' processing",
+                )
+                if not event:
+                    time.sleep(self.event_sleep_time)
                     continue
 
-                # dividing by event_topic so relevant process is called
-                if event_topic == "syncsketch.review_session_end":
-                    logging.info(
-                        "Review session ended "
-                        f"event: {pformat(payload)}."
-                    )
-                    self._process_review_session_end(payload)
-                elif event_topic == "syncsketch.item_approval_status_changed":
-                    self._process_item_approval_status_changed(payload)
-                    logging.info(
-                        "Item approval status changed "
-                        f"event: {pformat(payload)}."
-                    )
+                event_status = "failed"
+                try:
+                    source_event = ayon_api.get_event(event["dependsOn"])
+                    payload = source_event["payload"]
 
-                logging.info(
-                    "Event has been processed... setting to finished!")
-                event_status = "finished"
+                    if not payload:
+                        time.sleep(self.event_sleep_time)
+                        ayon_api.update_event(event["id"], status="finished")
+                        continue
 
-            except ftrack_api.exception.Error:
-                logging.error(f"Unable to process handler {payload}")
+                    handler(payload)
+
+                    logging.info(
+                        "Event has been processed... setting to finished!")
+                    event_status = "finished"
+
+                except (
+                    ftrack_api.exception.Error,
+                    Exception
+                ) as err:
+                    logging.error(f"Unable to process handler {payload}")
+                    log_traceback(err)
+
+                finally:
+                    ayon_api.update_event(event["id"], status=event_status)
+
+                time.sleep(self.event_sleep_time)
 
             except Exception as err:
-                logging.error(f"Unable to process handler {payload}")
-                log_traceback(err)
-
-            finally:
-                ayon_api.update_event(event["id"], status=event_status)
+                logging.error(f"Unable to enroll for Ayon events: {err}")
+                time.sleep(self.event_sleep_time)
+                continue
 
     def _process_item_approval_status_changed(self, payload):
         """ Update an Ftrack asset version or task with SyncSketch notes.
@@ -207,7 +197,7 @@ class SyncSketchProcessor:
 
         review_link = f"{review_link}#/{review_item_id}"
 
-        review_media_item = self._get_media_dict(
+        review_media_item = self._generate_notes(
             review_item, project_name, review_id, review_link)
 
         if not review_media_item:
@@ -270,6 +260,39 @@ class SyncSketchProcessor:
 
         return self.ftrack_statuses.get(ftrack_status_name)
 
+    def _get_metadata_version_ids(self, review_items):
+        """ Get the Ayon Version ids from the SyncSketch review items.
+
+        Args:
+            review_items (list[dict]): The SyncSketch review items.
+
+        Returns:
+            list[str]: The Ayon Version ids.
+        """
+
+        ayon_version_ids = {}
+        for review_item in review_items:
+
+            if review_item.get("metadata") is None:
+                logging.warning(
+                    f"Media {review_item['name']} is missing metadata.")
+                continue
+
+            # json string to dict and get the ayonVersionID
+            metadata_data = json.loads(review_item["metadata"])
+            ayon_version_id = metadata_data.get("ayonVersionID")
+
+            if not ayon_version_id:
+                logging.error(
+                    f"Media {review_item['name']} is missing the AYON id.")
+                continue
+
+            ayon_version_ids[ayon_version_id] = {
+                "syncsketch_review_item": review_item
+            }
+
+        return ayon_version_ids
+
     def _ftrack_project_entity(self, project_name):
         project_query = 'Project where full_name is "{0}"'.format(project_name)
 
@@ -328,56 +351,57 @@ class SyncSketchProcessor:
         review_items = self.syncsketch_session.get_media_by_review_id(
             review_id)
 
-        review_media_with_notes = []
-        for review_item in review_items.get("objects", []):
-            review_link_ = f"{review_link}#/{review_item['id']}"
+        ayon_version_ids = self._get_metadata_version_ids(
+            review_items.get("objects", [])
+        )
 
-            review_media_item = self._get_media_dict(
-                review_item, project_name, review_id, review_link_)
+        version_data_all = self._get_version_data(
+            project_name, ayon_version_ids)
 
-            if review_media_item:
-                review_media_with_notes.append(review_media_item)
+        for _, version_data in version_data_all.items():
+            review_item = version_data["syncsketch_review_item"]
+            review_item_id = review_item["id"]
+            logging.info(f"Processing review item \'{review_item_id}\'...")
 
-        all_version_ids = {
-            review_media_item["ftrack_id"]
-            for review_media_item in review_media_with_notes
-        }
-        all_version_ids.discard(None)
+            review_link_ = f"{review_link}#/{review_item_id}"
+            ftrack_entity = version_data["ftrack_entity"]
 
-        ftrack_version_entities = \
-            self._get_ftrack_asset_versions_entities_by_version_ids(
-                all_version_ids)
-
-        for review_media_item in review_media_with_notes:
-            # Ftrack AssetVersion
-            status_name = review_media_item["approval_status"]
-
-            ftrack_id = review_media_item["ftrack_id"]
-            ft_asset_version = ftrack_version_entities.get(ftrack_id)
-
-            if not ft_asset_version:
+            if not ftrack_entity:
+                ftrack_id = version_data["ftrack_id"]
                 logging.error(
                     f"Unable to find Ftrack asset version `{ftrack_id}`")
                 continue
 
+            notes = self._generate_notes(
+                version_data, review_id, review_link_)
+
+            if not notes:
+                logging.info(
+                    f"Unable to find notes for review item `{review_item_id}`")
+                continue
+
+            logging.info(
+                f"Ftrack status and notes: \'{review_item_id}\'...")
+
+            status_name = review_item["approval_status"]
             # get ftrack status id from mapped status name
             ftrack_status_id = self._get_ftrack_status_id_from_name(
                 status_name, project_entity)
 
             self._notes_to_ftrack(
-                ft_asset_version, review_media_item, ftrack_status_id)
+                ftrack_entity, notes, ftrack_status_id)
 
     def _notes_to_ftrack(
             self,
             ft_entity,
-            review_media_item,
+            notes,
             ftrack_status_id=None,
         ):
         """ Update an Ftrack asset version or task with SyncSketch notes.
 
         Args:
             ft_entity (dict): The Ftrack AssetVersion entity.
-            review_media_item (dict): The SyncSketch review media item.
+            notes (list[dict]): notes to be synced to ftrack
             ftrack_status_id (Optional[str]): The Ftrack status id.
 
         Returns:
@@ -387,31 +411,21 @@ class SyncSketchProcessor:
         if ftrack_status_id:
             ft_entity["status_id"] = ftrack_status_id
 
-        existing_ftrack_notes = [
-            # duplication of notes were caused by inconsistency of
-            # www. in the url
-            note["content"].replace("www.", "")
-            for note in ft_entity["notes"]
-        ]
 
         upload_location = self.ft_session.query(
             "Location where name is \"ftrack.server\""
         ).one()
 
-        for review_media_item_note in review_media_item["notes"]:
-            if review_media_item_note["text"] in existing_ftrack_notes:
-                # Note already exists in Ftrack
-                logging.info(
-                    f"Note \"{review_media_item_note['text']}\" already exists "
-                    f"in Ftrack notes, skipping. {existing_ftrack_notes}"
-                )
-                continue
+        for note_data in notes:
+            frame_number = note_data.get("frame")
+            logging.info(f"< Note {frame_number}" + "-" * 50 + " >")
+            logging.info(pformat(note_data))
 
             # Create a new note
             try:
                 # Try to get the Ftrack user by username
                 ft_user = self._get_ftrack_user_by_username(
-                    review_media_item_note["username"])
+                    note_data["username"])
             except Exception:
                 # user does not exist in Ftrack so we default
                 # to the API user
@@ -420,19 +434,19 @@ class SyncSketchProcessor:
                 ft_user = self._get_ftrack_user_by_username(
                     api_username)
 
-            note_data = {
-                "content": review_media_item_note["text"],
+            ftrack_note_data = {
+                "content": note_data["text"],
                 "author": ft_user
             }
 
-            frame = review_media_item_note.get("frame")
+            frame = note_data.get("frame")
             if frame:
-                note_data["frame_number"] = int(frame)
+                ftrack_note_data["frame_number"] = int(frame)
 
-            new_note_entity = self.ft_session.create("Note", note_data)
+            new_note_entity = self.ft_session.create("Note", ftrack_note_data)
             ft_entity["notes"].append(new_note_entity)
 
-            sketch_data = review_media_item_note.get("sketch")
+            sketch_data = note_data.get("sketch")
             if not sketch_data:
                 continue
 
@@ -472,39 +486,106 @@ class SyncSketchProcessor:
             self.ft_session.create("NoteComponent", note_component_data)
             self.ft_session.commit()
 
-    def _get_media_dict(self, review_item, project_name, review_id, review_link):
+    def _get_version_data(self, project_name, ayon_version_ids):
+        """ Get Ayon and Ftrack entities by the Ayon Version ids.
 
-        if review_item.get("metadata") is None:
-            logging.warning(
-                f"Media {review_item['name']} is missing metadata.")
-            return
+        Args:
+            project_name (str): The project name.
+            ayon_version_ids (dict[str, dict]): The Ayon Version ids.
 
-        # json string to dict and get the ayonVersionID
-        metadata_data = json.loads(review_item["metadata"])
-        ayon_version_id = metadata_data.get("ayonVersionID")
+        Returns:
+            dict[str, dict]: The Ftrack entities by the Ayon Version ids.
+        """
+        if not ayon_version_ids:
+            return {}
 
-        if not ayon_version_id:
-            logging.error(
-                f"Media {review_item['name']} is missing the AYON id.")
-            return
+        ayon_version_entities = {
+            version["id"]: {
+                "ayon_version_entity": version
+            }
+            for version in ayon_api.get_versions(
+                project_name, ayon_version_ids.keys()
+            )
+        }
 
-        ayon_version_entity = ayon_api.get_version_by_id(
-            project_name, ayon_version_id)
+        for version_id, version_data in ayon_version_entities.items():
+            # update ayon_version_entities with ayon version entities
+            version_data.update(ayon_version_ids[version_id])
+            ayon_version_entity = version_data["ayon_version_entity"]
 
-        if not ayon_version_entity["attrib"].get("ftrackId"):
-            logging.error(
-                f"Media {ayon_version_entity} is missing the Ftrack ID.")
-            return
-        media_dict = deepcopy(review_item)
-        media_dict.update({
-            "ftrack_id": ayon_version_entity["attrib"]["ftrackId"],
-            "notes": [],
-        })
+            if not ayon_version_entity.get("attrib", {}).get("ftrackId"):
+                logging.error(
+                    f"Media {ayon_version_entity} is missing the Ftrack ID.")
+                continue
+
+            ftrack_id = ayon_version_entity["attrib"]["ftrackId"]
+            version_data.update({
+                "ftrack_id": ftrack_id
+            })
+
+        ftrack_version_entities = \
+            self._get_ftrack_asset_versions_entities_by_version_ids(
+                [
+                    ayon_version_entity["ftrack_id"]
+                    for ayon_version_entity in ayon_version_entities.values()
+                ]
+            )
+
+        for ayon_version_entity in ayon_version_entities.values():
+            ayon_version_entity["ftrack_entity"] = ftrack_version_entities.get(
+                ayon_version_entity["ftrack_id"]
+            )
+
+        return ayon_version_entities
+
+    def _generate_notes(self, version_data, review_id, review_link):
+
+        review_item = version_data["syncsketch_review_item"]
+        ftrack_entity = version_data["ftrack_entity"]
+
+        existing_ftrack_notes = [
+            # duplication of notes were caused by inconsistency of
+            # www. in the url
+            note["content"].replace("www.", "")
+            for note in ftrack_entity["notes"]
+        ]
 
         annotations = self.syncsketch_session.get_annotations(
             review_item["id"],
             review_id=review_id
         )
+
+        notes = []
+        for annotation in annotations.get("objects", []):
+            if annotation["type"] == "sketch":
+                continue
+
+            frame_number = annotation.get("frame")
+
+            note_data = {
+                "username": annotation["creator"]["username"],
+                "frame": frame_number
+            }
+            comment_text = self.get_comment_text(
+                annotation, url=review_link)
+
+            note_data["text"] = comment_text
+
+            # skip if comment already exists in ftrack notes
+            if comment_text in existing_ftrack_notes:
+                logging.info(
+                    f"Existing note from: \'{review_item['id']}\', "
+                    f"with frame: \'{frame_number}\', "
+                    f"in review list: \'{review_id}\'"
+                )
+                continue
+
+            notes.append(note_data)
+
+        if not notes:
+            return
+
+        # get flattened annotations with tracing paper
         sketches = self.syncsketch_session.get_flattened_annotations(
             review_item["id"],
             review_id,
@@ -518,38 +599,23 @@ class SyncSketchProcessor:
             for sketch in sketches["data"]
         }
 
-        for annotation in annotations.get("objects", []):
-            if annotation["type"] == "sketch":
-                continue
-
-            frame_number = annotation.get("frame")
-
-            notes_data = {
-                "username": annotation["creator"]["username"],
-                "frame": frame_number
-            }
+        # add sketches to note_data
+        for note_data in notes:
+            sync_frame = note_data["frame"]
 
             # check if frame key is in annotation
-            if annotation.get("frame") and annotation["frame"] in sketches:
-                frame_number = sketches[annotation["frame"]]["adjustedFrame"]
-                notes_data.update({
-                    # add frame to formatting data for note text
-                    "frame": frame_number,
-                    # add sketch data for later thumbnail upload
-                    "sketch": sketches[annotation["frame"]],
-                })
+            if sync_frame not in sketches:
+                continue
 
-            comment_text = self.get_comment_text(
-                annotation, url=review_link)
+            frame_number = sketches[sync_frame]["adjustedFrame"]
+            note_data.update({
+                # add frame to formatting data for note text
+                "frame": frame_number,
+                # add sketch data for later thumbnail upload
+                "sketch": sketches[sync_frame],
+            })
 
-            notes_data["text"] = comment_text
-
-            # TODO: need to check existing notes in ftrack here
-            media_dict["notes"].append(notes_data)
-
-        if media_dict["notes"] != []:
-            # return media_dict only if it has notes
-            return media_dict
+        return notes
 
     def _get_ftrack_user_by_username(self, username):
         """ Get the Ftrack user by username.
