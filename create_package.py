@@ -29,10 +29,8 @@ import logging
 import collections
 import zipfile
 
-
-# Name of addon
+COMMON_DIR_NAME: str = "syncsketch_common"
 ADDON_NAME = "syncsketch"
-# Name of folder where client code is located to copy 'version.py'
 ADDON_CLIENT_DIR = "ayon_syncsketch"
 
 # Patterns of directories to be skipped for server part of addon
@@ -156,13 +154,24 @@ def copy_server_content(addon_output_dir, current_dir, log):
 
     log.info("Copying server content")
 
-    filepaths_to_copy = []
     server_dirpath = os.path.join(current_dir, "server")
+    common_dir: str = os.path.join(current_dir, COMMON_DIR_NAME)
 
-    # Version
-    src_version_path = os.path.join(current_dir, "version.py")
-    dst_version_path = os.path.join(addon_output_dir, "version.py")
-    filepaths_to_copy.append((src_version_path, dst_version_path))
+    filepaths_to_copy: list[tuple[str, str]] = [
+        (
+            os.path.join(current_dir, "version.py"),
+            os.path.join(addon_output_dir, "version.py")
+        ),
+        # Copy constants needed for attributes creation
+        (
+            os.path.join(common_dir, "server_handler.py"),
+            os.path.join(addon_output_dir, "common", "server_handler.py")
+        ),
+        (
+            os.path.join(common_dir, "constants.py"),
+            os.path.join(addon_output_dir, "common", "constants.py")
+        ),
+    ]
 
     for item in find_files_in_subdir(server_dirpath):
         src_path, dst_subpath = item
@@ -182,8 +191,9 @@ def zip_client_side(addon_package_dir, current_dir, log):
         current_dir (str): Directory path of addon source.
         log (logging.Logger): Logger object.
     """
-
     client_dir = os.path.join(current_dir, "client")
+    common_dir: str = os.path.join(current_dir, COMMON_DIR_NAME)
+
     if not os.path.isdir(client_dir):
         log.info("Client directory was not found. Skipping")
         return
@@ -201,7 +211,20 @@ def zip_client_side(addon_package_dir, current_dir, log):
     with ZipFileLongPaths(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
         # Add client code content to zip
         for path, sub_path in find_files_in_subdir(client_dir):
+            if (
+                "common" in path
+                or "version.py" in path
+                or "settings.py" in path
+            ):
+                # skip common for case the folder is preset during development
+                print(path, sub_path)
+                continue
+
             zipf.write(path, sub_path)
+
+        for path, sub_path in find_files_in_subdir(common_dir):
+            dst_path = "/".join((ADDON_CLIENT_DIR, "common", sub_path))
+            zipf.write(path, dst_path)
 
         # Add 'version.py' to client code
         zipf.write(src_version_path, dst_version_path)

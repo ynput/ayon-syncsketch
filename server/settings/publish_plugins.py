@@ -1,14 +1,36 @@
-from pydantic import Field
-from ayon_server.settings import BaseSettingsModel
+from pydantic import Field, validator
+
+from ayon_server.settings import (
+    BaseSettingsModel,
+    task_types_enum,
+    ensure_unique_names
+)
+
+
+class ReviewItemProfile(BaseSettingsModel):
+    _layout = "collapsed"
+    name: str = Field("", title="Name")
+    product_types: list[str] = Field(
+        default_factory=list, title="Product types"
+    )
+    hosts: list[str] = Field(default_factory=list, title="Hosts")
+    task_types: list[str] = Field(
+        default_factory=list,
+        title="Task types",
+        enum_resolver=task_types_enum
+    )
+    tasks: list[str] = Field(default_factory=list, title="Task names")
+    list_name_template: str = Field(
+        "", title="Review list name template")
+    review_item_name_template: str = Field(
+        "", title="Review item name template")
 
 
 class IntegrateReviewablesModel(BaseSettingsModel):
     """Settings for Integrate SyncSketch reviewable plugin."""
 
-    review_list: str = Field(title="Review List")
-    review_item_name_template: str = Field(title="Review Item Name Template")
     representation_tag: str = Field(
-        title="Representations' Activation Tag",
+        title="Representations' activation tag",
         disabled=True,
         description=(
             "This is just for information and cannot be changed. "
@@ -16,20 +38,39 @@ class IntegrateReviewablesModel(BaseSettingsModel):
             "the representation you want to upload to SyncSketch."
         )
     )
+    review_item_profiles: list[ReviewItemProfile] = Field(
+        default_factory=list,
+        title="Review item profiles"
+    )
+
+    @validator("review_item_profiles")
+    def ensure_unique_names(cls, value):
+        """Ensure name fields within the lists have unique names."""
+        ensure_unique_names(value)
+        return value
 
 
 class PublishPluginsModel(BaseSettingsModel):
     IntegrateReviewables: IntegrateReviewablesModel = \
         Field(
             default_factory=IntegrateReviewablesModel,
-            title="Integrate Reviewables"
+            title="Integrate reviewables"
         )
 
 
 DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS = {
     "IntegrateReviewables":  {
-        "review_list": "Uploads from Ayon",
-        "review_item_name_template": "{asset} | {task[name]} | v{version} .{ext}",
-        "representation_tag": "syncsketchreview"
+        "representation_tag": "syncsketchreview",
+        "review_item_profiles": [
+            {
+                "name": "Default",
+                "product_types": [],
+                "hosts": [],
+                "task_types": [],
+                "tasks": [],
+                "list_name_template": "Uploads from Ayon",
+                "review_item_name_template": "{folder[name]} | {subset} | v{version}", # noqa: E501
+            },
+        ]
     }
 }

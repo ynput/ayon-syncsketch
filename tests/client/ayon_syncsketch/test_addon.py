@@ -3,8 +3,8 @@ from tests.lib import BaseTest
 
 
 class TestSyncsketchAddon(BaseTest):
-
-    def test_get_syncsketch_project_active_config(self, ayon_module_manager):
+    # TODO: this is not up to date and needs to be updated
+    def test_get_syncsketch_config(self, ayon_module_manager):
         mock_settings = {
             "syncsketch": {
                 "syncsketch_server_configs": [
@@ -18,7 +18,7 @@ class TestSyncsketchAddon(BaseTest):
         syncsketch_addon = manager["syncsketch"]
 
         # Test return value for active config
-        active_config = syncsketch_addon.get_syncsketch_project_active_config(
+        active_config = syncsketch_addon.get_syncsketch_config(
             mock_settings
         )
         assert active_config["name"] == "config2"
@@ -35,6 +35,6 @@ class TestSyncsketchAddon(BaseTest):
         }
 
         with pytest.raises(RuntimeError):
-            syncsketch_addon.get_syncsketch_project_active_config(
+            syncsketch_addon.get_syncsketch_config(
                 mock_settings
             )

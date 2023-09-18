@@ -1,11 +1,11 @@
 import os
-from openpype.settings import get_project_settings
-from openpype.pipeline import get_current_project_name
 from openpype.modules import (
     OpenPypeAddOn,
     IPluginPaths,
 )
-from ayon_api import get_addon_project_settings
+from ayon_syncsketch.common import config
+from .version import __version__
+
 
 SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -13,37 +13,18 @@ SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 class SyncsketchAddon(OpenPypeAddOn, IPluginPaths):
     name = "syncsketch"
     enabled = True
+    version = __version__
 
-    # TODO: replace constant with dynamic version
-    version = "1.0.0"
-
-    def get_syncsketch_project_active_config(self, project_name):
+    def get_syncsketch_config(self, project_name):
         """ Returns the active SyncSketch config for the current project """
-
-        project_settings = get_addon_project_settings(
-            self.name,
-            self.version,
-            project_name
+        server_config = config.get_syncsketch_project_config(
+            project_name, self.version
         )
 
-        # fallback to current project settings
-        if not project_settings:
-            project_settings = get_project_settings(
-                get_current_project_name()
-            )
+        # resolve secrets into the server config
+        config.merge_resolved_secrets(server_config)
 
-        # get all configs
-        configs = (
-            project_settings["syncsketch_server_configs"]
-        )
-
-        # find the active one
-        for config in configs:
-            if config["active"]:
-                return config
-
-        # no active config found
-        raise RuntimeError("No active SyncSketch config found")
+        return server_config
 
     def get_plugin_paths(self):
         return {
