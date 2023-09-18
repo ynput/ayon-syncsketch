@@ -18,6 +18,7 @@ class TestPublishCollectActiveConfig(PublishTest):
 
         yield plugin
 
+    # TODO: this is not up to date and needs to be updated
     def test_active_server_collector_one_active(self, context, plugin):
         context.data["project_settings"] = {
             "syncsketch": {
@@ -31,6 +32,7 @@ class TestPublishCollectActiveConfig(PublishTest):
         plugin.process(context)
         assert context.data.get("syncsketchServerConfig")["name"] == "config2"
 
+    # TODO: this is not up to date and needs to be updated
     def test_active_server_collector_none_active(self, context, plugin):
         context.data["project_settings"] = {
             "syncsketch": {

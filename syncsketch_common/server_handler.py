@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 import json
 import os
 import time
@@ -194,10 +195,11 @@ class ServerCommunication:
                 src_files = new_src_files
 
             self.log.debug("URL: {}, params: {}".format(url, params))
+            self.log.debug("post_data: {}".format(post_data))
 
             result = requests.post(
                 url,
-                data=post_data,
+                json=post_data,
                 files=src_files,
                 params=params,
                 headers=headers
@@ -527,6 +529,8 @@ class ServerCommunication:
             "limit": limit,
             "offset": offset
         }
+        self.log.debug("get_reviews_by_project_id: {}".format(get_params))
+
         return self._get_json_response(
             "/api/{}/review/".format(self.api_version),
             get_data=get_params
@@ -778,26 +782,23 @@ class ServerCommunication:
             get_data=get_params
         )
 
-    def get_flattened_annotations(self, review_id, item_id,
+    def get_flattened_annotations(self, item_id, review_id,
                                   with_tracing_paper=False,
-                                  return_as_base64=False, api_version=None):
+                                  return_as_base64=False):
         """
         Get flattened annotations of an item in a review.
 
         Args:
-            review_id (int): The ID of the review.
             item_id (int): The ID of the item.
+            review_id (int): The ID of the review.
             with_tracing_paper (bool, optional): Include tracing paper in
                 the response. Defaults to False.
             return_as_base64 (bool, optional): Return the response as base64.
                 Defaults to False.
-            api_version (str, optional): The API version to use.
-                Defaults to None
 
         Returns:
             dict: The response from the API call.
         """
-        api_version = api_version or "v2"
 
         get_data_ = {
             "include_data": 1,
@@ -806,8 +807,8 @@ class ServerCommunication:
             "async": 0
         }
 
-        url = "/api/{}/downloads/flattenedSketches/{}/{}/".format(
-            api_version, review_id, item_id)
+        url = "/api/v2/downloads/flattenedSketches/{}/{}/".format(
+            review_id, item_id)
 
         return self._get_json_response(
             url,
