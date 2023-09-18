@@ -16,7 +16,7 @@ from nxtools import logging, log_traceback
 import ayon_api
 import ftrack_api
 
-from .processor_lib.event_abstraction import EventProcessor
+from .lib.event_abstraction import EventProcessor
 
 
 class SyncSketchProcessor:

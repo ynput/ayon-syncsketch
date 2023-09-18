@@ -28,11 +28,11 @@ function defaultfunc {
 }
 
 function build {
-  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/processor_common"
+  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/common"
   try {
     & docker build -t "$IMAGE_FULL_NAME" .
   } finally {
-    & Remove-Item -Recurse -Force "$current_dir/processor/processor_common"
+    & Remove-Item -Recurse -Force "$current_dir/processor/common"
   }
 }
 
@@ -47,7 +47,7 @@ function dist {
 }
 
 function dev {
-  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/processor_common"
+  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/common"
   try {
     & docker run --rm -u ayonuser -ti `
       -v "$($current_dir):/service:Z"`
@@ -58,7 +58,7 @@ function dev {
       --network=host `
       "$($IMAGE_FULL_NAME)" python -m processor
   } finally {
-    & Remove-Item -Recurse -Force "$current_dir/processor/processor_common"
+    & Remove-Item -Recurse -Force "$current_dir/processor/common"
   }
 }
 
