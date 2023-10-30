@@ -2,6 +2,6 @@ name: ayon-syncsketch-services
 services:
   processor:
     container_name: processor
-    image: ynput/ayon-syncsketch-processor:0.1.0
+    image: ynput/ayon-syncsketch-processor:0.1.1
     restart: unless-stopped
     env_file: .env
