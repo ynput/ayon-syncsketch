@@ -2,7 +2,7 @@ import os
 import json
 from pprint import pformat
 import socket
-from typing import Optional, Type, Any
+from typing import Type, Any
 
 import requests
 from nxtools import logging
@@ -12,8 +12,6 @@ from ayon_server.addons import BaseServerAddon
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
-from tomlkit import item
 
 from .common import constants
 from .settings import SyncsketchSettings, DEFAULT_VALUES

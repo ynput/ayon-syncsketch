@@ -1,5 +1,4 @@
 import sys
-import os
 
 from .processor import SyncSketchProcessor
 
