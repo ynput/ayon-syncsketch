@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "syncsketch-processor"
-version = "0.0.1"
+version = "0.1.1"
 description = "SyncSketch Integration for Ayon"
-authors = ["Oscar Domingo <oscar.domingo@ynput.com>"]
+authors = ["Jakub Jezek <jakub@ynput.com>"]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<4.0"
+python = ">=3.9,<3.11"
 pydantic = "^1.10.2"
 nxtools = "^1.6"
 ayon-python-api = "^0.4"

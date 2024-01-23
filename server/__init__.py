@@ -160,7 +160,7 @@ class SyncsketchAddon(BaseServerAddon):
         """Dispatch an Ayon event from a SyncSketch one.
         """
 
-        if request["action"] in [
+        if "action" in request and request["action"] in [
             "review_session_end",
             "item_approval_status_changed"
         ]:

@@ -68,7 +68,16 @@ class SyncsketchItemApprovalStatusChanged(FtrackNoteSyncing):
 
         # duplication of notes were caused by inconsistency of
         # www. in the url
-        review_link = review_entity["reviewURL"].replace("www.", "")
+        if "reviewURL" in review_entity:
+            review_link = review_entity["reviewURL"].replace("www.", "")
+        else:
+            logging.warning(
+                f"Review {review_id} does not have a 'reviewURL' key."
+            )
+            logging.warning(
+                review_entity
+            )
+            return
 
         review_item = self.syncsketch_session.get_review_item(
             review_item_id)

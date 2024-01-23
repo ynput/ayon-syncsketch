@@ -30,6 +30,8 @@ class FtrackNoteSyncing(EventProcessor):
     statuses_mapping = None
     all_resolved_secrets = None
     syncsketch_session = None
+    ftrack_statuses = None
+
 
     def __init__(self, addon_settings):
         """ Ensure both Ayon, Syncsketch and Ftrack connections are available.
@@ -67,7 +69,7 @@ class FtrackNoteSyncing(EventProcessor):
                 # QUESTION: should we cash it or not?
                 schema_cache_path=False
             )
-
+            logging.info(f"Connected to Ftrack API. {self.ft_session}")
         except Exception as e:
             logging.error("Unable to connect to Ftrack API:")
             log_traceback(e)
