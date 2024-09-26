@@ -4,7 +4,7 @@ from tests.lib import BaseTest
 
 class TestSyncsketchAddon(BaseTest):
     # TODO: this is not up to date and needs to be updated
-    def test_get_syncsketch_config(self, ayon_module_manager):
+    def test_get_syncsketch_config(self, ayon_addons_manager):
         mock_settings = {
             "syncsketch": {
                 "syncsketch_server_configs": [

@@ -1,35 +1,36 @@
-from pydantic import Field, validator
+from pydantic import validator
 
 from ayon_server.settings import (
     BaseSettingsModel,
     task_types_enum,
+    SettingsField,
     ensure_unique_names
 )
 
 
 class ReviewItemProfile(BaseSettingsModel):
     _layout = "collapsed"
-    name: str = Field("", title="Name")
-    product_types: list[str] = Field(
+    name: str = SettingsField("", title="Name")
+    product_types: list[str] = SettingsField(
         default_factory=list, title="Product types"
     )
-    hosts: list[str] = Field(default_factory=list, title="Hosts")
-    task_types: list[str] = Field(
+    hosts: list[str] = SettingsField(default_factory=list, title="Hosts")
+    task_types: list[str] = SettingsField(
         default_factory=list,
         title="Task types",
         enum_resolver=task_types_enum
     )
-    tasks: list[str] = Field(default_factory=list, title="Task names")
-    list_name_template: str = Field(
+    tasks: list[str] = SettingsField(default_factory=list, title="Task names")
+    list_name_template: str = SettingsField(
         "", title="Review list name template")
-    review_item_name_template: str = Field(
+    review_item_name_template: str = SettingsField(
         "", title="Review item name template")
 
 
 class IntegrateReviewablesModel(BaseSettingsModel):
     """Settings for Integrate SyncSketch reviewable plugin."""
 
-    representation_tag: str = Field(
+    representation_tag: str = SettingsField(
         title="Representations' activation tag",
         disabled=True,
         description=(
@@ -38,7 +39,7 @@ class IntegrateReviewablesModel(BaseSettingsModel):
             "the representation you want to upload to SyncSketch."
         )
     )
-    review_item_profiles: list[ReviewItemProfile] = Field(
+    review_item_profiles: list[ReviewItemProfile] = SettingsField(
         default_factory=list,
         title="Review item profiles"
     )
@@ -52,7 +53,7 @@ class IntegrateReviewablesModel(BaseSettingsModel):
 
 class PublishPluginsModel(BaseSettingsModel):
     IntegrateReviewables: IntegrateReviewablesModel = \
-        Field(
+        SettingsField(
             default_factory=IntegrateReviewablesModel,
             title="Integrate reviewables"
         )
@@ -69,7 +70,7 @@ DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS = {
                 "task_types": [],
                 "tasks": [],
                 "list_name_template": "Uploads from Ayon",
-                "review_item_name_template": "{folder[name]} | {subset} | v{version}", # noqa: E501
+                "review_item_name_template": "{folder[name]} | {subset} | v{version}",  # noqa: E501
             },
         ]
     }

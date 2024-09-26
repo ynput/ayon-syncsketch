@@ -12,7 +12,7 @@ class CollectActiveServerConfig(pyblish.api.ContextPlugin):
     def process(self, context):
         try:
             syncsketch_addon = (
-                context.data.get("openPypeModules")["syncsketch"])
+                context.data.get("ayonAddons")["syncsketch"])
         except AttributeError:
             self.log.error("Cannot get Ayon SyncSketch addon.")
             raise AssertionError("Ayon SyncSketch addon not found.")

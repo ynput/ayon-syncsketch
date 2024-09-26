@@ -20,16 +20,17 @@ print("Adding client directory to sys.path: {}".format(client_dir.resolve()))
 sys.path.append(str(client_dir))
 sys.path.append(str(client_api_dir))
 
+
 # basic testing class
 class BaseTest:
     """Base class for all tests."""
 
     @pytest.fixture(scope="package")
-    def ayon_module_manager(self):
+    def ayon_addons_manager(self):
         import ayon_start
-        from openpype.modules import ModulesManager
+        from ayon_core.addon import AddonsManager
 
-        yield ModulesManager
+        yield AddonsManager
 
     # This is the pytest fixture that creates a mock server
     @pytest.fixture
@@ -40,15 +41,15 @@ class BaseTest:
 
 class PublishTest(BaseTest):
     @pytest.fixture(scope="package")
-    def syncsketch_addon(self, ayon_module_manager):
-        manager = ayon_module_manager()
+    def syncsketch_addon(self, ayon_addons_manager):
+        manager = ayon_addons_manager()
         yield manager["syncsketch"]
 
     @pytest.fixture(scope="package")
     def host_plugins(self, syncsketch_addon):
         import pyblish.api
-        from openpype.pipeline import install_openpype_plugins
-        install_openpype_plugins(host_name="syncsketch")
+        from ayon_core.pipeline import install_ayon_plugins
+        install_ayon_plugins(host_name="syncsketch")
 
         yield pyblish.api.discover()
 
@@ -58,7 +59,7 @@ class PublishTest(BaseTest):
 
         class Context(PyblishContext):
             data = {
-                "openPypeModules": {
+                "ayonAddons": {
                     "syncsketch": syncsketch_addon
                 }
             }
