@@ -5,22 +5,19 @@ import json
 from copy import deepcopy
 from pprint import pformat
 import pyblish.api
-from openpype.pipeline import KnownPublishError
-from openpype.pipeline.publish import (
-    OpenPypePyblishPluginMixin
-)
-from openpype.lib import (
+from ayon_core.pipeline import KnownPublishError, AYONPyblishPluginMixin
+from ayon_core.lib import (
     StringTemplate,
     BoolDef,
     filter_profiles,
     prepare_template_data
 )
-from openpype_modules.ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
+import ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
 import requests
 
 
 class IntegrateReviewables(pyblish.api.InstancePlugin,
-                           OpenPypePyblishPluginMixin):
+                           AYONPyblishPluginMixin):
     """Integrate SyncSketch reviewables.
 
     Uploads representations as reviewables to SyncSketch.

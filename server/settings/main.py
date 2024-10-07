@@ -1,7 +1,8 @@
-from pydantic import Field, validator
+from pydantic import validator
 
 from ayon_server.settings import (
     BaseSettingsModel,
+    SettingsField,
     ensure_unique_names
 )
 from ayon_server.settings.enum import secrets_enum
@@ -13,48 +14,48 @@ from .publish_plugins import (
 
 
 class StatusesMapping(BaseSettingsModel):
-    name: str = Field(
+    name: str = SettingsField(
         title="SyncSketch Status")
-    ftrack_status: str = Field(
+    ftrack_status: str = SettingsField(
         title="Frack Status")
 
 
 class ServerListSubmodel(BaseSettingsModel):
-    url: str = Field(
+    url: str = SettingsField(
         title="SyncSketch Server URL")
-    auth_user: str = Field(
+    auth_user: str = SettingsField(
         enum_resolver=secrets_enum,
         title="Auth Username")
-    auth_token: str = Field(
+    auth_token: str = SettingsField(
         enum_resolver=secrets_enum,
         title="Auth Token")
-    account_id: str = Field(
+    account_id: str = SettingsField(
         enum_resolver=secrets_enum,
         title="Account ID")
-    ftrack_url: str = Field(
+    ftrack_url: str = SettingsField(
         title="Ftrack Server URL")
-    ftrack_api_key: str = Field(
+    ftrack_api_key: str = SettingsField(
         enum_resolver=secrets_enum,
         title="Ftrack API Key")
-    ftrack_username: str = Field(
+    ftrack_username: str = SettingsField(
         enum_resolver=secrets_enum,
         title="Ftrack Username")
 
 
 class SyncsketchSettings(BaseSettingsModel):
 
-    syncsketch_server_config:  ServerListSubmodel = Field(
+    syncsketch_server_config:  ServerListSubmodel = SettingsField(
         default_factory=ServerListSubmodel,
         title="SyncSketch server config",
         scope=["studio"]
     )
-    statuses_mapping: list[StatusesMapping] = Field(
+    statuses_mapping: list[StatusesMapping] = SettingsField(
         default_factory=list,
         title="Statuses Mapping",
         description="Map Ftrack and SyncSketch statuses.",
         scope=["studio"]
     )
-    publish: PublishPluginsModel = Field(
+    publish: PublishPluginsModel = SettingsField(
         default_factory=PublishPluginsModel,
         title="Publish Plugins",
     )

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Validate a SyncSketch connection."""
 import pyblish.api
-from openpype_modules.ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
+from ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
 import requests
 
 
@@ -39,4 +39,5 @@ class ValidateServerConnection(pyblish.api.ContextPlugin):
         response = server_handler.is_connected()
 
         if not response:
-            raise requests.exceptions.ConnectionError("SyncSketch connection failed.")
+            raise requests.exceptions.ConnectionError(
+                "SyncSketch connection failed.")

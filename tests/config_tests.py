@@ -17,8 +17,7 @@ def set_environment():
     env = {
         "SYNC_SKETCH_API_KEY": os.getenv("SYNC_SKETCH_API_KEY") or "test",
         "USE_AYON_SERVER": os.getenv("USE_AYON_SERVER") or "1",
-        "OPENPYPE_ROOT": ayon_root,
-        "OPENPYPE_REPOS_ROOT": ayon_root
+        "AYON_ROOT": ayon_root,
     }
 
     for key, value in env.items():
