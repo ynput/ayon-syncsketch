@@ -217,6 +217,28 @@ def update_client_version(logger):
         stream.write(VERSION_PY_CONTENT)
 
 
+def update_service_version(logger):
+    docker_compose_path = os.path.join(
+        CURRENT_ROOT, "service", "docker-compose.yml"
+    )
+    with open(docker_compose_path, "r") as stream:
+        content = stream.readlines()
+
+    new_lines = []
+    sep = "image: ynput/ayon-syncsketch-processor"
+    for line in content:
+        if sep in line:
+            head, _ = line.split(sep)
+            new_line = f"{head}{sep}:{ADDON_VERSION}\n"
+            if new_line != line:
+                logger.info(f"Updating service version to {ADDON_VERSION}")
+
+        new_lines.append(line)
+
+    with open(docker_compose_path, "w") as stream:
+        stream.write("".join(new_lines))
+
+
 def build_frontend():
     yarn_executable = _get_yarn_executable()
     if yarn_executable is None:
@@ -429,6 +451,8 @@ def main(
                 " Please check 'client_dir' in 'package.py'."
             )
         update_client_version(log)
+
+    update_service_version(log)
 
     if only_client:
         if not has_client_code:
