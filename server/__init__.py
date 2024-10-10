@@ -41,7 +41,7 @@ class SyncsketchAddon(BaseServerAddon):
         return settings_model_cls(**DEFAULT_VALUES)
 
     async def setup(self):
-        need_restart = await self.create_applications_attribute()
+        need_restart = await self.create_syncsketch_id_attribute()
         if need_restart:
             self.request_server_restart()
 
@@ -178,7 +178,7 @@ class SyncsketchAddon(BaseServerAddon):
             f"Received a SyncSketch event that we don't handle. {request}"
         )
 
-    async def create_applications_attribute(self) -> bool:
+    async def create_syncsketch_id_attribute(self) -> bool:
         """Make sure there are required attributes which ftrack addon needs.
 
         Returns:
