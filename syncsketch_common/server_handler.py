@@ -3,16 +3,10 @@
 import json
 import os
 import time
-import requests
 import logging
+from urllib.parse import urlencode
 
-try:
-    # Python 3
-    from urllib.parse import urlparse, urlencode
-except ImportError:
-    # Python 2
-    from urlparse import urlparse
-    from urllib import urlencode
+import requests
 
 
 class ServerCommunication:
