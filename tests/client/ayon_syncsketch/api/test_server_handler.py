@@ -14,7 +14,9 @@ class TestServerHandler(BaseTest):
             review_id=os.environ["SYNCSKETCH_REVIEW_ID"],
             filepath=os.path.join(THIS_DIR, "test_image.jpg"),
             artist_name="John.Smith",
-            file_name="shot | episode | sequence | shot01 | compositing | v11 .mp4",
+            file_name=(
+                "shot | episode | sequence | shot01 | compositing | v11 .mp4"
+            ),
             no_convert_flag=True,
             item_parent_id=False
         )
@@ -29,7 +31,9 @@ class TestServerHandler(BaseTest):
             review_id=os.environ["SYNCSKETCH_REVIEW_ID"],
             filepath=os.path.join(THIS_DIR, "test_video.mp4"),
             artist_name="John.Smith",
-            file_name="shot | episode | sequence | shot01 | compositing | v11 .mp4",
+            file_name=(
+                "shot | episode | sequence | shot01 | compositing | v11 .mp4"
+            ),
             no_convert_flag=True,
             item_parent_id=False
         )

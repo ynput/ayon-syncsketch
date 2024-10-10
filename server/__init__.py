@@ -1,4 +1,3 @@
-import os
 import json
 from pprint import pformat
 import socket

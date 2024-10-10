@@ -46,8 +46,8 @@ class SyncSketchProcessor:
         """ Main loop enrolling on AYON events.
 
         We look for events of the topic `syncsketch.event` and process them by
-        issuing events of topic `syncsketch.proc` which run the `_upload_review_
-        notes_to_ftrack` method against the event payload.
+        issuing events of topic `syncsketch.proc` which run the
+        `_upload_review_ notes_to_ftrack` method against the event payload.
         """
         logging.info("Starting the SyncSketch Processor.")
         root_dir = os.path.dirname(__file__)
@@ -56,7 +56,9 @@ class SyncSketchProcessor:
 
         # Get a list of all the Python files in the folder
         handler_files = [
-            f[:-3] for f in os.listdir(self.event_handlers_folder) if f.endswith(".py")
+            f[:-3]
+            for f in os.listdir(self.event_handlers_folder)
+            if f.endswith(".py")
         ]
 
         # Import each module and get the class

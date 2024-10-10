@@ -37,7 +37,9 @@ class FtrackNoteSyncing(EventProcessor):
 
         try:
             self.statuses_mapping = addon_settings["statuses_mapping"]
-            self.syncsk_server_config = addon_settings["syncsketch_server_config"]
+            self.syncsk_server_config = (
+                addon_settings["syncsketch_server_config"]
+            )
             self.all_resolved_secrets = get_resolved_secrets(
                 self.syncsk_server_config)
 

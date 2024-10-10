@@ -2,4 +2,6 @@ from .addon import (
     SyncsketchAddon,
 )
 
-__all__ = ("SyncsketchAddon",)
+__all__ = (
+    "SyncsketchAddon",
+)

@@ -6,7 +6,8 @@ from processor.lib.event_abstraction import FtrackNoteSyncing
 class SyncsketchReviewSessionEnd(FtrackNoteSyncing):
     """ SyncSketch Review Session End Event Handler.
 
-    This class is responsible for processing SyncSketch Review Session End events.
+    This class is responsible for processing SyncSketch Review Session End
+    events.
     """
 
     def __init__(self, addon_settings):
@@ -25,8 +26,8 @@ class SyncsketchReviewSessionEnd(FtrackNoteSyncing):
         Task, if all is found, we try to update the Task's notes with the ones
         from SyncSketch that are not already there.
 
-        Notes are published as the same user as in SyncSketch if the user has the
-        username in Ftrack otherwise it defaults to the API username.
+        Notes are published as the same user as in SyncSketch if the user has
+        the username in Ftrack otherwise it defaults to the API username.
 
         Payload example:
             {

@@ -1,10 +1,10 @@
-from unittest.mock import Base
-import pytest
 import os
 import sys
-import responses
 from pathlib import Path
 
+import responses
+import pytest
+from unittest.mock import Base
 
 from .config_tests import set_environment
 
@@ -27,7 +27,7 @@ class BaseTest:
 
     @pytest.fixture(scope="package")
     def ayon_addons_manager(self):
-        import ayon_start
+        import ayon_start  # noqa F401
         from ayon_core.addon import AddonsManager
 
         yield AddonsManager
@@ -35,7 +35,9 @@ class BaseTest:
     # This is the pytest fixture that creates a mock server
     @pytest.fixture
     def mock_server(self):
-        with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
+        with responses.RequestsMock(
+            assert_all_requests_are_fired=False
+        ) as rsps:
             yield rsps
 
 
