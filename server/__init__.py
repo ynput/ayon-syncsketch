@@ -15,21 +15,12 @@ from ayon_server.lib.postgres import Postgres
 
 from .common import constants
 from .settings import SyncsketchSettings, DEFAULT_VALUES
-from .version import __version__
 
 
 class SyncsketchAddon(BaseServerAddon):
-    name = "syncsketch"
-    title = "SyncSketch"
-    version = __version__
     settings_model: Type[SyncsketchSettings] = SyncsketchSettings
-    # TODO: need to make sure image is published to docker hub
-    services = {
-        "processor": {"image": f"ynput/ayon-syncsketch-processor:{version}"}
-    }
 
     async def resolved_secrets(self):
-
         addon_settings = await self.get_studio_settings()
         syncsk_server_config = addon_settings.syncsketch_server_config
         syncsk_server_config = dict(syncsk_server_config)
