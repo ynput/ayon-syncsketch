@@ -3,16 +3,10 @@
 import json
 import os
 import time
-import requests
 import logging
+from urllib.parse import urlencode
 
-try:
-    # Python 3
-    from urllib.parse import urlparse, urlencode
-except ImportError:
-    # Python 2
-    from urlparse import urlparse
-    from urllib import urlencode
+import requests
 
 
 class ServerCommunication:
@@ -634,8 +628,15 @@ class ServerCommunication:
             patch_data=data
         )
 
-    def upload_review_item(self, review_id, filepath, artist_name="", file_name="",
-                  no_convert_flag=False, item_parent_id=False):
+    def upload_review_item(
+        self,
+        review_id,
+        filepath,
+        artist_name="",
+        file_name="",
+        no_convert_flag=False,
+        item_parent_id=False
+    ):
         """
         Convenience function to upload a file to a review. It will
         automatically create an Item and attach it to the review.
@@ -650,8 +651,8 @@ class ServerCommunication:
             no_convert_flag (bool, optional): The video you are uploading
                 is already in a browser compatible format. Defaults to False.
             item_parent_id (int, optional): Set when you want to add a new
-                version of an item. item_parent_id is the id of the item you want
-                to upload a new version for. Defaults to False.
+                version of an item. item_parent_id is the id of the item you
+                want to upload a new version for. Defaults to False.
 
         Returns:
             dict: The response from the API call.

@@ -1,4 +1,3 @@
-import os
 import json
 from pprint import pformat
 import socket
@@ -15,21 +14,12 @@ from ayon_server.lib.postgres import Postgres
 
 from .common import constants
 from .settings import SyncsketchSettings, DEFAULT_VALUES
-from .version import __version__
 
 
 class SyncsketchAddon(BaseServerAddon):
-    name = "syncsketch"
-    title = "SyncSketch"
-    version = __version__
     settings_model: Type[SyncsketchSettings] = SyncsketchSettings
-    # TODO: need to make sure image is published to docker hub
-    services = {
-        "processor": {"image": f"ynput/ayon-syncsketch-processor:{version}"}
-    }
 
     async def resolved_secrets(self):
-
         addon_settings = await self.get_studio_settings()
         syncsk_server_config = addon_settings.syncsketch_server_config
         syncsk_server_config = dict(syncsk_server_config)
@@ -50,7 +40,7 @@ class SyncsketchAddon(BaseServerAddon):
         return settings_model_cls(**DEFAULT_VALUES)
 
     async def setup(self):
-        need_restart = await self.create_applications_attribute()
+        need_restart = await self.create_syncsketch_id_attribute()
         if need_restart:
             self.request_server_restart()
 
@@ -187,7 +177,7 @@ class SyncsketchAddon(BaseServerAddon):
             f"Received a SyncSketch event that we don't handle. {request}"
         )
 
-    async def create_applications_attribute(self) -> bool:
+    async def create_syncsketch_id_attribute(self) -> bool:
         """Make sure there are required attributes which ftrack addon needs.
 
         Returns:

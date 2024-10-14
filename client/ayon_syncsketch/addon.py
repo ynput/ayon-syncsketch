@@ -2,15 +2,14 @@ import os
 
 from ayon_core.addon import AYONAddon, IPluginPaths
 from ayon_syncsketch.common import config
+
 from .version import __version__
 
-
-SYNCSKETCH_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+SYNCSKETCH_ADDON_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 class SyncsketchAddon(AYONAddon, IPluginPaths):
     name = "syncsketch"
-    enabled = True
     version = __version__
 
     def get_syncsketch_config(self, project_name):
@@ -27,7 +26,7 @@ class SyncsketchAddon(AYONAddon, IPluginPaths):
     def get_plugin_paths(self):
         return {
             "publish": [
-                os.path.join(SYNCSKETCH_MODULE_DIR, "plugins", "publish")
+                os.path.join(SYNCSKETCH_ADDON_ROOT, "plugins", "publish")
             ]
         }
 

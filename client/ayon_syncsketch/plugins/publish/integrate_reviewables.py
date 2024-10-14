@@ -4,7 +4,10 @@ import os
 import json
 from copy import deepcopy
 from pprint import pformat
+
 import pyblish.api
+import requests
+
 from ayon_core.pipeline import KnownPublishError, AYONPyblishPluginMixin
 from ayon_core.lib import (
     StringTemplate,
@@ -12,8 +15,7 @@ from ayon_core.lib import (
     filter_profiles,
     prepare_template_data
 )
-import ayon_syncsketch.common.server_handler import ServerCommunication  # noqa: E501
-import requests
+from ayon_syncsketch.common.server_handler import ServerCommunication
 
 
 class IntegrateReviewables(pyblish.api.InstancePlugin,
@@ -32,8 +34,9 @@ class IntegrateReviewables(pyblish.api.InstancePlugin,
     review_item_profiles = []
 
     def filter_review_item_profiles(
-            self, family, host_name, task_name, task_type):
-        if self.review_item_profiles is []:
+        self, family, host_name, task_name, task_type
+    ):
+        if not self.review_item_profiles:
             return []
 
         filtering_criteria = {

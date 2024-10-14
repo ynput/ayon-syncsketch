@@ -1,6 +1,6 @@
-
 import ayon_api
 from ayon_api import get_addon_project_settings
+
 from .constants import required_secret_keys
 
 
