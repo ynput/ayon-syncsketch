@@ -5,7 +5,7 @@ $script_dir_rel = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 $script_dir = (Get-Item $script_dir_rel).FullName
 
 $IMAGE_NAME = "ynput/ayon-syncsketch-processor"
-$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../version.py'));exec(f.read(),content);f.close();print(content['__version__'])"""
+$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../package.py'));exec(f.read(),content);f.close();print(content['version'])"""
 $IMAGE_FULL_NAME = "$($IMAGE_NAME):$($ADDON_VERSION)"
 
 function defaultfunc {
