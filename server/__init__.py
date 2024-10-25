@@ -111,12 +111,27 @@ class SyncsketchAddon(BaseServerAddon):
         existing_webhooks = requests.request(
             "GET", syncsketch_endpoint, headers=headers)
 
-        if existing_webhooks.status_code == 400:
-            logging.error(existing_webhooks.json())
+        if existing_webhooks.status_code == 404:
+            logging.error(
+                f"SyncSketch API is not reachable at: {syncsketch_endpoint}")
             return
 
-        if existing_webhooks.json():
-            for webhook in existing_webhooks.json():
+        # In some cases the JSON response may not be retrievable and could
+        # end up with a JSONDecodeError if the response is not JSON.
+        try:
+            existing_webhooks_json = existing_webhooks.json()
+        except requests.exceptions.JSONDecodeError:
+            logging.error(
+                "Unable to decode JSON response from SyncSketch API: "
+                f"{existing_webhooks}")
+            return
+
+        if existing_webhooks.status_code == 400:
+            logging.error(existing_webhooks_json)
+            return
+
+        if existing_webhooks_json:
+            for webhook in existing_webhooks_json:
                 if (
                     webhook.get("url") == ayon_endpoint
                     and webhook.get("type") == "all"
