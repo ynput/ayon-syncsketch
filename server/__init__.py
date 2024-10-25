@@ -108,8 +108,16 @@ class SyncsketchAddon(BaseServerAddon):
             "Content-Type": "application/json",
         }
 
-        existing_webhooks = requests.request(
-            "GET", syncsketch_endpoint, headers=headers)
+        try:
+            existing_webhooks = requests.request(
+                "GET", syncsketch_endpoint, headers=headers)
+        except requests.exceptions.ConnectionError:
+            # This could happen if the SyncSketch API is not reachable
+            # with e.g. authentication issues, or the server is down.
+            # Usually with a "Max retries exceeded with url" message.
+            logging.error(
+                f"SyncSketch API connection error at: {syncsketch_endpoint}")
+            return
 
         if existing_webhooks.status_code == 404:
             logging.error(
