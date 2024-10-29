@@ -3,12 +3,12 @@ from pprint import pformat
 import socket
 from typing import Type, Any
 
-import requests
-from nxtools import logging
+import httpx
+from nxtools import logging, log_traceback
 
+from ayon_server.config import ayonconfig
 from ayon_server.secrets import Secrets
 from ayon_server.addons import BaseServerAddon
-from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
 
@@ -72,6 +72,7 @@ class SyncsketchAddon(BaseServerAddon):
         addon_settings = await self.get_studio_settings()
         syncsk_server_config = addon_settings.syncsketch_server_config
         all_secrets = await self.resolved_secrets()
+        timeout = ayonconfig.http_timeout
 
 
         # is manageable via server env variable AYON_HTTP_LISTEN_ADDRESS
@@ -109,37 +110,19 @@ class SyncsketchAddon(BaseServerAddon):
         }
 
         try:
-            existing_webhooks = requests.request(
-                "GET", syncsketch_endpoint, headers=headers)
-        except requests.exceptions.ConnectionError:
-            # This could happen if the SyncSketch API is not reachable
-            # with e.g. authentication issues, or the server is down.
-            # Usually with a "Max retries exceeded with url" message.
-            logging.error(
-                f"SyncSketch API connection error at: {syncsketch_endpoint}")
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                res = await client.get(
+                    syncsketch_endpoint,
+                    headers=headers,
+                )
+                res.raise_for_status()
+                existing_webhooks = res.json()
+        except Exception:
+            log_traceback("Unable to get existing Webhooks in SyncSketch.")
             return
 
-        if existing_webhooks.status_code == 404:
-            logging.error(
-                f"SyncSketch API is not reachable at: {syncsketch_endpoint}")
-            return
-
-        # In some cases the JSON response may not be retrievable and could
-        # end up with a JSONDecodeError if the response is not JSON.
-        try:
-            existing_webhooks_json = existing_webhooks.json()
-        except requests.exceptions.JSONDecodeError:
-            logging.error(
-                "Unable to decode JSON response from SyncSketch API: "
-                f"{existing_webhooks}")
-            return
-
-        if existing_webhooks.status_code == 400:
-            logging.error(existing_webhooks_json)
-            return
-
-        if existing_webhooks_json:
-            for webhook in existing_webhooks_json:
+        if existing_webhooks:
+            for webhook in existing_webhooks:
                 if (
                     webhook.get("url") == ayon_endpoint
                     and webhook.get("type") == "all"
@@ -148,21 +131,21 @@ class SyncsketchAddon(BaseServerAddon):
                     return
 
         # Create the Webhook that sends an event when a session ends
-        # TODO: rewrite this to use HTTPX so it is not io blocking
-        webhook_created = requests.request(
-            "POST",
-            syncsketch_endpoint,
-            headers=headers,
-            data=json.dumps({
-                "url": ayon_endpoint,
-                "type": "all",
-            }),
-        )
 
-        if webhook_created.status_code != 200:
-            logging.info(
-                "Something went wrong when trying to create the Webhook.")
-            raise ValueError(webhook_created.json())
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                webhook_created = await client.post(
+                    syncsketch_endpoint,
+                    headers=headers,
+                    json={
+                        "url": ayon_endpoint,
+                        "type": "all",
+                    }
+                )
+                webhook_created.raise_for_status()
+        except Exception:
+            log_traceback("Unable to create a Webhook in SyncSketch.")
+            return
 
         logging.info(
             "Successfully created a Webhook in "
