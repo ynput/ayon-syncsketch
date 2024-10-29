@@ -1,4 +1,3 @@
-import json
 from pprint import pformat
 import socket
 from typing import Type, Any
