@@ -2,7 +2,7 @@
 """Package declaring addon version."""
 name = "syncsketch"
 title = "SyncSketch"
-version = "0.3.0"
+version = "0.3.0+dev"
 client_dir = "ayon_syncsketch"
 
 # TODO: need to make sure image is published to docker hub
