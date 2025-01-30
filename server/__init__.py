@@ -113,6 +113,7 @@ class SyncsketchAddon(BaseServerAddon):
                 res = await client.get(
                     syncsketch_endpoint,
                     headers=headers,
+                    follow_redirects=True,
                 )
                 res.raise_for_status()
                 existing_webhooks = res.json()
@@ -136,6 +137,7 @@ class SyncsketchAddon(BaseServerAddon):
                 webhook_created = await client.post(
                     syncsketch_endpoint,
                     headers=headers,
+                    follow_redirects=True,
                     json={
                         "url": ayon_endpoint,
                         "type": "all",
