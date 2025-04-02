@@ -166,3 +166,6 @@ client/ayon_syncsketch/common/
 
 service/processor/common/
 service/poetry.lock
+
+# ignore mkdocs build
+site/
