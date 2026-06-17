@@ -1,20 +1,12 @@
-[tool.poetry]
+[project]
 name = "syncsketch-processor"
 version = "0.0.1"
-description = "SyncSketch Integration for Ayon"
-authors = ["Oscar Domingo <oscar.domingo@ynput.com>"]
+description = "SyncSketch Integration for AYON"
+authors = [{name = "Ynput s.r.o.", email ="info@ynput.io"}]
+dependencies = [
+    "platformdirs",
+    "ayon-python-api==1.2.21"
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<4.0"
-pydantic = "^1.10.2"
-nxtools = "^1.6"
-ayon-python-api = "*"
-ftrack-python-api = "*"
-python-dotenv = "^1.0.0"
-
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools]
+py-modules = ["processor"]
