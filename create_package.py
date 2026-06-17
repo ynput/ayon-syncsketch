@@ -219,7 +219,7 @@ def update_client_version(logger):
 
 def update_service_version(logger):
     docker_compose_path = os.path.join(
-        CURRENT_ROOT, "services", "docker-compose.yml"
+        CURRENT_ROOT, "services", "processor", "docker-compose.yml"
     )
     with open(docker_compose_path, "r") as stream:
         content = stream.readlines()
@@ -279,10 +279,6 @@ def get_client_files_mapping() -> List[Tuple[str, str]]:
         for path, sub_path in find_files_in_subdir(client_code_dir)
     ]
 
-    for path, sub_path in find_files_in_subdir(COMMON_DIR_ROOT):
-        dst_path = "/".join((ADDON_CLIENT_DIR, "common", sub_path))
-        mapping.append((path, dst_path))
-
     license_path = os.path.join(CURRENT_ROOT, "LICENSE")
     if os.path.exists(license_path):
         mapping.append((license_path, f"{ADDON_CLIENT_DIR}/LICENSE"))
@@ -311,14 +307,6 @@ def get_base_files_mapping() -> List[FileMapping]:
     license_path = os.path.join(CURRENT_ROOT, "LICENSE")
     if os.path.exists(license_path):
         filepaths_to_copy.append((license_path, "LICENSE"))
-
-    for filename in (
-        "server_handler.py",
-        "constants.py",
-    ):
-        src_path = os.path.join(COMMON_DIR_ROOT, filename)
-        dst_path = os.path.join("server", "common", filename)
-        filepaths_to_copy.append((src_path, dst_path))
 
     # Go through server, private and public directories and find all files
     for dirpath in (SERVER_ROOT, PRIVATE_ROOT, PUBLIC_ROOT):
