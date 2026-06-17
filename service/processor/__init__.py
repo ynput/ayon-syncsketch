@@ -1,6 +1,6 @@
-from .processor import SyncSketchProcessor
+from .processor import main
 
 
 __all__ = (
-    "SyncSketchProcessor",
+    "main",
 )
