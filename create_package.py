@@ -219,7 +219,7 @@ def update_client_version(logger):
 
 def update_service_version(logger):
     docker_compose_path = os.path.join(
-        CURRENT_ROOT, "service", "docker-compose.yml"
+        CURRENT_ROOT, "services", "docker-compose.yml"
     )
     with open(docker_compose_path, "r") as stream:
         content = stream.readlines()

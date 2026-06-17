@@ -5,7 +5,7 @@ $script_dir_rel = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 $script_dir = (Get-Item $script_dir_rel).FullName
 
 $IMAGE_NAME = "ynput/ayon-syncsketch-processor"
-$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../package.py'));exec(f.read(),content);f.close();print(content['version'])"""
+$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../../package.py'));exec(f.read(),content);f.close();print(content['version'])"""
 $IMAGE_FULL_NAME = "$($IMAGE_NAME):$($ADDON_VERSION)"
 
 function defaultfunc {
@@ -28,12 +28,7 @@ function defaultfunc {
 }
 
 function build {
-  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/common"
-  try {
-    & docker build -t "$IMAGE_FULL_NAME" .
-  } finally {
-    & Remove-Item -Recurse -Force "$current_dir/processor/common"
-  }
+  & docker build -t "$IMAGE_FULL_NAME" .
 }
 
 function clean {
@@ -42,24 +37,18 @@ function clean {
 
 function dist {
   build
-  # Publish the docker image to the registry
   docker push "$IMAGE_FULL_NAME"
 }
 
 function dev {
-  & Copy-Item -r "$current_dir/../syncsketch_common" "$current_dir/processor/common"
-  try {
-    & docker run --rm -u ayonuser -ti `
-      -v "$($current_dir):/service:Z"`
-      --env-file "$($current_dir)/.env" `
-      --attach=stdin `
-      --attach=stdout `
-      --attach=stderr `
-      --network=host `
-      "$($IMAGE_FULL_NAME)" python -m processor
-  } finally {
-    & Remove-Item -Recurse -Force "$current_dir/processor/common"
-  }
+  & docker run --rm -ti `
+    -v "$($current_dir):/service:Z"`
+    --env-file "$($current_dir)/.env" `
+    --attach=stdin `
+    --attach=stdout `
+    --attach=stderr `
+    --network=host `
+    "$($IMAGE_FULL_NAME)" python -m processor
 }
 
 function main {
