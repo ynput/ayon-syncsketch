@@ -3,7 +3,6 @@ from pydantic import validator
 from ayon_server.settings import (
     BaseSettingsModel,
     SettingsField,
-    ensure_unique_names
 )
 from ayon_server.settings.enum import secrets_enum
 
@@ -14,7 +13,7 @@ class ServerConfigModel(BaseSettingsModel):
         enum_resolver=secrets_enum,
         title="API Username",
     )
-    api_token: str = SettingsField(
+    api_key: str = SettingsField(
         "",
         enum_resolver=secrets_enum,
         title="API Key",
@@ -35,7 +34,7 @@ class SyncsketchSettings(BaseSettingsModel):
 
 DEFAULT_VALUES = {
     "syncsketch_server_config": {
-        "api_token": "",
+        "api_key": "",
         "username": "",
         "server_url": "",
     },
