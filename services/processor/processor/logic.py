@@ -97,7 +97,7 @@ def push_review_to_syncsketch(
         return
 
     for ayon_item in new_items:
-        version_id = ayon_item in["entityId"]
+        version_id = ayon_item["entityId"]
         reviewable_id: str | None = ayon_item["data"].get("reviewable")
         if reviewable_id is None:
             response = ayon_api.get(

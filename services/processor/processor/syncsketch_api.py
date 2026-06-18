@@ -23,13 +23,13 @@ class SyncSketchAPI:
 
         self.api_key = api_key
         self.username = username
-        self.server_url = server_url
+        self.server_url = server_url.rstrip("/")
 
-        self._session = requests.Session(base_url=server_url)
+        self._session = requests.Session()
 
     def validate_credentials(self) -> None:
         response = self._session.get(
-            "api/v1/person/connected/",
+            f"{self.server_url}/api/v1/person/connected/",
             params=self._get_params(),
         )
         response.raise_for_status()
@@ -212,7 +212,7 @@ class SyncSketchAPI:
         params = self._get_params()
 
         response = self._session.post(
-            f"/items/uploadToReview/{review_id}/",
+            f"{self.server_url}/items/uploadToReview/{review_id}/",
             params=params,
             data=body,
             headers={},
@@ -237,8 +237,8 @@ class SyncSketchAPI:
 
         params = self._get_params()
 
-        response = requests.post(
-            f"/items/uploadToReview/{review_id}/",
+        response = self._session.post(
+            f"{self.server_url}/items/uploadToReview/{review_id}/",
             params=params,
             files={"reviewFile": stream},
             data=body,
@@ -310,7 +310,7 @@ class SyncSketchAPI:
     ) -> str:
         if api_version is None:
             api_version = "v1"
-        return f"/api/{api_version}/{path}/"
+        return f"{self.server_url}/api/{api_version}/{path}/"
 
     def _get_params(self, **kwargs) -> dict[str, Any]:
         return {

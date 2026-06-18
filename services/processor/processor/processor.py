@@ -92,7 +92,9 @@ def listen_for_events():
             time.sleep(10)
             continue
 
-        job_event = job_events[0]
+        first_event = job_events[0]
+        # Use rest endpoint to get the event data
+        job_event = ayon_api.get_event(first_event["id"])
         ayon_api.update_event(
             job_event["id"],
             status="in_progress",
