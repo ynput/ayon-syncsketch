@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from datetime import datetime
 import io
 import logging
 from typing import Any
+import urllib.request
 
 import ayon_api
 
@@ -69,7 +72,7 @@ def push_review_to_syncsketch(
         if review["name"] == label:
             sketch_review = review
             sketch_review["items"] = syncsketch_api.get_review_items(
-                sketch_review["id"]
+                review["id"]
             )
             break
 
@@ -80,6 +83,7 @@ def push_review_to_syncsketch(
             f" in SyncSketch project '{project_name}'"
         )
 
+    sketch_review_id = sketch_review["id"]
     # TODO this logic requires
     #   https://github.com/ynput/ayon-backend/issues/985
     syncsketch_ids = {item["id"] for item in sketch_review["items"]}
@@ -133,7 +137,7 @@ def push_review_to_syncsketch(
             stream.seek(0)
 
             item = syncsketch_api.create_review_item_from_stream(
-                review_id=sketch_review["id"],
+                review_id=sketch_review_id,
                 stream=stream,
                 name=filename,
             )
@@ -146,7 +150,7 @@ def push_review_to_syncsketch(
         else:
             media_url = location
             item = syncsketch_api.create_review_item_from_url(
-                review_id=sketch_review["id"],
+                review_id=sketch_review_id,
                 media_url=media_url,
                 name=filename,
             )
@@ -165,6 +169,14 @@ def push_review_to_syncsketch(
         )
 
 
+@contextmanager
+def _fake_as_username(username):
+    try:
+        yield
+    finally:
+        pass
+
+
 def pull_comment_from_syncsketch(
     event: dict[str, Any],
     credentials: SyncsketchConfig,
@@ -178,25 +190,34 @@ def pull_comment_from_syncsketch(
     )
     ayon_list_entity = ayon_api.get_entity_list_rest(project_name, list_id)
     if ayon_list_entity is None:
-        msg = f"Failed to find list '{list_id}' in project '{project_name}'."
-        logging.error(msg)
-        raise SyncError(msg)
+        raise SyncError(
+            f"Failed to find list '{list_id}' in project '{project_name}'."
+        )
 
     if ayon_list_entity["entityType"] != "version":
-        msg = (
+        raise SyncError(
             f"List '{list_id}' in project '{project_name}'"
             f" is not a version list."
         )
-        logging.error(msg)
-        raise SyncError(msg)
 
     if not ayon_list_entity["items"]:
-        msg = (
+        raise SyncError(
             f"List '{list_id}' in project '{project_name}' is empty. "
             "Nothing to pull from SyncSketch."
         )
-        logging.error(msg)
-        raise SyncError(msg)
+
+    ayon_items_by_syncsketch_id: dict[int, dict[str, Any]] = {}
+    for item in ayon_list_entity["items"]:
+        syncsketch_id = item["data"].get("syncsketch_id")
+        if syncsketch_id:
+            ayon_items_by_syncsketch_id[syncsketch_id] = item
+
+    if not ayon_items_by_syncsketch_id:
+        raise SyncError(
+            f"List '{list_id}' items in project '{project_name}'"
+            " were not synchronized to SyncSketch."
+            " Nothing to pull from SyncSketch."
+        )
 
     syncsketch_api = SyncSketchAPI(
         username=credentials.username,
@@ -210,9 +231,9 @@ def pull_comment_from_syncsketch(
             break
 
     if project_id is None:
-        msg = f"Failed to find SyncSketch project with name '{project_name}'"
-        logging.error(msg)
-        raise SyncError(msg)
+        raise SyncError(
+            f"Failed to find SyncSketch project with name '{project_name}'"
+        )
 
     label = ayon_list_entity["label"]
     sketch_review: dict[str, Any] = {}
@@ -220,17 +241,264 @@ def pull_comment_from_syncsketch(
         if review["name"] == label:
             sketch_review = review
             sketch_review["items"] = syncsketch_api.get_review_items(
-                sketch_review["id"]
+                review["id"]
             )
             break
 
     if not sketch_review:
-        msg = (
+        raise SyncError(
             f"Failed to find SyncSketch review session with name '{label}'"
             f" in project '{project_name}'"
         )
-        logging.error(msg)
-        raise SyncError(msg)
 
-    # TODO implement
-    raise SyncError("Push is not yet implemented")
+    sketch_review_id = sketch_review["id"]
+    ayon_item_entity_ids = set()
+    mapped_items = []
+    for item in sketch_review["items"]:
+        syncsketch_id: int = item["id"]
+        ayon_item = ayon_items_by_syncsketch_id.get(syncsketch_id)
+        if ayon_item:
+            ayon_item_entity_ids.add(ayon_item["entityId"])
+            mapped_items.append((item, ayon_item))
+
+    if not mapped_items:
+        raise SyncError(
+            f"Failed to find any items in SyncSketch review session '{label}'"
+            f" that are mapped to list '{list_id}' in project '{project_name}'."
+            " Nothing to pull from SyncSketch."
+        )
+
+    activities_by_entity_id = {
+        entity_id: []
+        for entity_id in ayon_item_entity_ids
+    }
+    for activity in ayon_api.get_activities(
+        project_name,
+        entity_ids=ayon_item_entity_ids,
+    ):
+        entity_id = activity["entityId"]
+        activities_by_entity_id[entity_id].append(activity)
+
+    sketch_users_by_email = {}
+    users = syncsketch_api.get_project_users(project_id)
+    for user in users:
+        first_name = user["first_name"]
+        last_name = user["last_name"]
+        user["full_name"] = f"{first_name} {last_name}"
+        email = user["email"].lower()
+        sketch_users_by_email[email] = user
+
+    ayon_users_by_email = {}
+    for user in ayon_api.get_users():
+        email = user["attrib"]["email"]
+        if not email:
+            continue
+        email = email.lower()
+        ayon_users_by_email[email] = user
+
+    as_username_func = _fake_as_username
+    if ayon_api.is_service_user():
+        con = ayon_api.get_server_api_connection()
+        as_username_func = con.as_username
+
+    ayon_entity_type = "version"
+    for sketch_item, ayon_item in mapped_items:
+        sketch_item_id = sketch_item["id"]
+        ayon_entity_id = ayon_item["entityId"]
+        ayon_activities = activities_by_entity_id[ayon_entity_id]
+        ayon_activities_by_sketch_id = {}
+        ayon_sketch_activities = []
+        for activity in ayon_activities:
+            syncsketch_meta = activity["activityData"].get("syncsketch")
+            if not syncsketch_meta:
+                continue
+
+            if syncsketch_meta["type"] == "comment":
+                syncsketch_id = syncsketch_meta["id"]
+                ayon_activities_by_sketch_id[syncsketch_id] = activity
+                
+            elif syncsketch_meta["type"] == "sketch":
+                ayon_sketch_activities.append(activity)
+
+        frames_info = syncsketch_api.get_review_item_frames(sketch_item_id)
+        frames_info.sort(key=lambda f: f["loadTime"])
+
+        sketches = []
+        for frame_info in frames_info:
+            frame_type = frame_info["type"]
+            if frame_type == "sketch":
+                sketches.append(frame_info)
+                continue
+
+            if frame_type != "comment":
+                continue
+
+            frame_info_id: int = frame_info["id"]
+            sketch_user_id: int = frame_info["creator"]["id"]
+            sketch_email: str = frame_info["creator"]["email"].lower()
+            frame: int | None = frame_info["frame"]
+            text: str = frame_info["text"]
+
+            as_username = as_username_func
+            ayon_username = ayon_users_by_email.get(sketch_email)
+            if not ayon_username:
+                as_username = _fake_as_username
+
+            ayon_text = text
+            if "@" in ayon_text:
+                for email, user in sketch_users_by_email.items():
+                    full_name = user["full_name"]
+                    mention = f"@{full_name}"
+                    if mention not in ayon_text:
+                        continue
+
+                    ayon_user = ayon_users_by_email.get(email)
+                    if not ayon_user:
+                        continue
+                    username = ayon_user["name"]
+                    ayon_text = ayon_text.replace(
+                        mention, f"[artist](user:{username})"
+                    )
+
+            if frame is not None:
+                ayon_text = f"`Frame {frame + 1:0>4}`\n{ayon_text}"
+
+            ayon_activity = ayon_activities_by_sketch_id.get(frame_info_id)
+            if ayon_activity:
+                syncsketch_meta = ayon_activity["activityData"]["syncsketch"]
+                if syncsketch_meta["text"] == text:
+                    continue
+
+                syncsketch_meta["text"] = text
+                syncsketch_meta["frame"] = frame
+
+                with as_username(ayon_username):
+                    ayon_api.update_activity(
+                        project_name,
+                        ayon_activity["id"],
+                        body=ayon_text,
+                        data={"syncsketch": syncsketch_meta},
+                    )
+                continue
+
+            syncsketch_meta = {
+                "text": text,
+                "id": frame_info_id,
+                "frame": frame,
+                "user_id": sketch_user_id,
+                "type": frame_type,
+            }
+            dt_object = datetime.fromtimestamp(frame_info["loadTime"])
+            with as_username(ayon_username):
+                ayon_api.create_activity(
+                    project_name,
+                    ayon_entity_id,
+                    ayon_entity_type,
+                    "comment",
+                    body=ayon_text,
+                    data={"syncsketch": syncsketch_meta},
+                    timestamp=dt_object.isoformat(),
+                )
+
+        # No sketches just continue
+        if not sketches:
+            logging.info(
+                "No sketches found."
+                f" Sync of item '{sketch_item_id}' finished."
+            )
+            continue
+
+        last_load_time: int = 0
+        sketches_items = []
+        sketches_mapping = {}
+        for rev_frames in sketches:
+            load_time: int = rev_frames["loadTime"]
+            if load_time > last_load_time:
+                last_load_time = load_time
+            frame_id: int = rev_frames["id"]
+            sketches_mapping[frame_id] = load_time
+            sketches_items.append({
+                "frame": rev_frames["frame"],
+                "loadTime": load_time,
+                "id": frame_id,
+            })
+
+        matching_activity = None
+        for activity in ayon_sketch_activities:
+            syncsketch_meta = activity["activityData"]["syncsketch"]
+            load_time_by_frame_id = {
+                mf["id"]: mf["loadTime"]
+                for mf in syncsketch_meta["frames"]
+            }
+            matching = True
+            for frame_id, load_time in sketches_mapping.items():
+                value = load_time_by_frame_id.get(frame_id)
+                if value != load_time:
+                    matching = False
+                    break
+
+            if matching:
+                matching_activity = activity
+                break
+
+        if matching_activity:
+            logging.info(
+                "Sketches already synchronized."
+                f" Sync of item '{sketch_item_id}' finished."
+            )
+            continue
+
+        basename = ayon_list_entity["label"]
+        sketches_data = syncsketch_api.prepare_review_item_sketches(
+            sketch_review_id, sketch_item["id"]
+        )
+        if sketches_data is None:
+            logging.error(
+                f"Failed to sync sketch frames for SyncSketch review"
+                f" '{sketch_review_id}' in project '{project_name}'"
+            )
+            continue
+
+        file_ids = set()
+        for image in sketches_data:
+            url = image["url"]
+            with urllib.request.urlopen(url) as response:
+                content = response.read()
+
+            stream = io.BytesIO(content)
+            adjusted_frame = image["adjustedFrame"]
+
+            filename = f"Frame {adjusted_frame:0>4}.jpg"
+
+            response = ayon_api.upload_project_file_from_stream(
+                project_name,
+                stream,
+                filename,
+                file_id=file_id,
+            )
+            file_id = response.json()["id"]
+            file_ids.add(file_id)
+
+        sketch_count = len(sketches_mapping) + 1
+        syncsketch_meta = {
+            "type": "sketch",
+            "id": f"sketch{sketch_count}",
+            "frames": sketches_items,
+        }
+        dt_object = datetime.fromtimestamp(last_load_time)
+        ayon_api.create_activity(
+            project_name,
+            ayon_entity_id,
+            ayon_entity_type,
+            "comment",
+            body="",
+            file_ids=list(file_ids),
+            timestamp=dt_object.isoformat(),
+            data={
+                "syncsketch": syncsketch_meta,
+            },
+        )
+
+        logging.info(f"Sync of item '{sketch_item_id}' finished.")
+
+    logging.info(f"Pull of review '{sketch_review_id}' is finished.")
