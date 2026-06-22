@@ -448,7 +448,6 @@ def pull_comment_from_syncsketch(
             )
             continue
 
-        basename = ayon_list_entity["label"]
         sketches_data = syncsketch_api.prepare_review_item_sketches(
             sketch_review_id, sketch_item["id"]
         )
@@ -474,7 +473,6 @@ def pull_comment_from_syncsketch(
                 project_name,
                 stream,
                 filename,
-                file_id=file_id,
             )
             file_id = response.json()["id"]
             file_ids.add(file_id)
