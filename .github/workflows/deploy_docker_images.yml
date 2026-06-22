@@ -19,10 +19,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build service image
-        id: build-docker-image
-        run: make build -C ./service
-
-      - name: Push service image
-        id: push-docker-image
-        run: make dist -C ./service
+      - name: Build Processor image
+        id: build-processor-docker-image
+        run: |
+          IMAGE=$(python3 ./services/processor/helper.py image)
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "Image $IMAGE already exists on Docker Hub. Skipping build."
+          else
+            make build -C ./services/processor
+            make dist -C ./services/processor
+          fi
