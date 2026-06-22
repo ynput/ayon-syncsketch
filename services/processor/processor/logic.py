@@ -85,6 +85,7 @@ def push_review_to_syncsketch(
     sketch_review_id = sketch_review["id"]
     # TODO this logic requires
     #   https://github.com/ynput/ayon-backend/issues/985
+    # - update of the 'syncsketch_id' field
     syncsketch_ids = {item["id"] for item in sketch_review["items"]}
     new_items = []
     for ayon_item in ayon_list_entity["items"]:
@@ -179,7 +180,10 @@ def pull_comment_from_syncsketch(
         f"Pulling notes and drawings from review session"
         f" for list '{list_id}' in project {project_name}"
     )
-    ayon_list_entity = ayon_api.get_entity_list_rest(project_name, list_id)
+    # --- Validate AYON list data ---
+    ayon_list_entity: dict[str, Any] = ayon_api.get_entity_list_rest(
+        project_name, list_id
+    )
     if ayon_list_entity is None:
         raise SyncError(
             f"Failed to find list '{list_id}' in project '{project_name}'."
@@ -210,6 +214,7 @@ def pull_comment_from_syncsketch(
             " Nothing to pull from SyncSketch."
         )
 
+    # --- Prepare and validate SyncSketch data ---
     syncsketch_api = SyncSketchAPI(
         username=credentials.username,
         api_key=credentials.api_key,
@@ -226,11 +231,14 @@ def pull_comment_from_syncsketch(
             f"Failed to find SyncSketch project with name '{project_name}'"
         )
 
-    label = ayon_list_entity["label"]
+    label: str = ayon_list_entity["label"]
     sketch_review: dict[str, Any] = {}
     for review in syncsketch_api.get_reviews(project_id):
         if review["name"] == label:
             sketch_review = review
+            # Items are not included when 'get_reviews' is called
+            # - it can be included in the review, but the payload would
+            #   be huge and we don't need it for the all reviews
             sketch_review["items"] = syncsketch_api.get_review_items(
                 review["id"]
             )
@@ -242,9 +250,10 @@ def pull_comment_from_syncsketch(
             f" in project '{project_name}'"
         )
 
-    sketch_review_id = sketch_review["id"]
-    ayon_item_entity_ids = set()
-    mapped_items = []
+    # Prepare mapping of AYON items to SyncSketch items
+    sketch_review_id: int = sketch_review["id"]
+    ayon_item_entity_ids: set[str] = set()
+    mapped_items: list[tuple[dict, dict]] = []
     for item in sketch_review["items"]:
         syncsketch_id: int = item["id"]
         ayon_item = ayon_items_by_syncsketch_id.get(syncsketch_id)
@@ -259,6 +268,7 @@ def pull_comment_from_syncsketch(
             f" '{project_name}'. Nothing to pull from SyncSketch."
         )
 
+    # Prepare existing AYON activities to avoid duplicated comments
     activities_by_entity_id = {
         entity_id: []
         for entity_id in ayon_item_entity_ids
@@ -270,16 +280,20 @@ def pull_comment_from_syncsketch(
         entity_id = activity["entityId"]
         activities_by_entity_id[entity_id].append(activity)
 
-    sketch_users_by_email = {}
+    # Prepare mapping of AYON and SyncSketch users
+    # - the mapping is based on email, in that case mentions in SyncSketch
+    #   comments can be replaced with AYON mentions
+    # - also the comments creation can be done inbehalve of the user
+    sketch_users_by_email: dict[str, str] = {}
     users = syncsketch_api.get_project_users(project_id)
     for user in users:
         first_name = user["first_name"]
         last_name = user["last_name"]
-        user["full_name"] = f"{first_name} {last_name}"
+        full_name = f"{first_name} {last_name}"
         email = user["email"].lower()
-        sketch_users_by_email[email] = user
+        sketch_users_by_email[email] = full_name
 
-    ayon_users_by_email = {}
+    ayon_users_by_email: dict[str, dict[str, Any]] = {}
     for user in ayon_api.get_users():
         email = user["attrib"]["email"]
         if not email:
@@ -290,13 +304,13 @@ def pull_comment_from_syncsketch(
     con = ayon_api.get_server_api_connection()
 
     ayon_entity_type = "version"
+    # Process each mapped item
     for sketch_item, ayon_item in mapped_items:
-        sketch_item_id = sketch_item["id"]
-        ayon_entity_id = ayon_item["entityId"]
-        ayon_activities = activities_by_entity_id[ayon_entity_id]
-        ayon_activities_by_sketch_id = {}
-        ayon_sketch_activities = []
-        for activity in ayon_activities:
+        sketch_item_id: int = sketch_item["id"]
+        ayon_entity_id: str = ayon_item["entityId"]
+        ayon_activities_by_sketch_id: dict = {int: dict[str, Any]}
+        ayon_sketch_activities: list[dict[str, Any]] = []
+        for activity in activities_by_entity_id[ayon_entity_id]:
             syncsketch_meta = activity["activityData"].get("syncsketch")
             if not syncsketch_meta:
                 continue
@@ -309,11 +323,14 @@ def pull_comment_from_syncsketch(
                 ayon_sketch_activities.append(activity)
 
         frames_info = syncsketch_api.get_review_item_frames(sketch_item_id)
+        # Sort frame items by load time (epoch time used for sorting)
         frames_info.sort(key=lambda f: f["loadTime"])
 
-        sketches = []
+        sketches: list[dict[str, Any]] = []
+        # Go through frame items and create/update AYON comment activities
+        # - also prepare sketche information
         for frame_info in frames_info:
-            frame_type = frame_info["type"]
+            frame_type: str = frame_info["type"]
             if frame_type == "sketch":
                 sketches.append(frame_info)
                 continue
@@ -327,11 +344,10 @@ def pull_comment_from_syncsketch(
             frame: int | None = frame_info["frame"]
             text: str = frame_info["text"]
 
-            ayon_username: str | None = ayon_users_by_email.get(sketch_email)
             ayon_text = text
+            # Replace mentions with AYON mentions
             if "@" in ayon_text:
-                for email, user in sketch_users_by_email.items():
-                    full_name = user["full_name"]
+                for email, full_name in sketch_users_by_email.items():
                     mention = f"@{full_name}"
                     if mention not in ayon_text:
                         continue
@@ -347,9 +363,18 @@ def pull_comment_from_syncsketch(
             if frame is not None:
                 ayon_text = f"`Frame {frame + 1:0>4}`\n{ayon_text}"
 
-            ayon_activity = ayon_activities_by_sketch_id.get(frame_info_id)
+            ayon_user: dict | None = ayon_users_by_email.get(sketch_email)
+            ayon_username: str | None = None
+            if ayon_user:
+                ayon_username = ayon_user["name"]
+
+            ayon_activity: dict[str, Any] | None = (
+                ayon_activities_by_sketch_id.get(frame_info_id)
+            )
             if ayon_activity:
-                syncsketch_meta = ayon_activity["activityData"]["syncsketch"]
+                syncsketch_meta: dict[str, Any] = (
+                    ayon_activity["activityData"]["syncsketch"]
+                )
                 if syncsketch_meta["text"] == text:
                     continue
 
@@ -397,8 +422,8 @@ def pull_comment_from_syncsketch(
             continue
 
         last_load_time: int = 0
-        sketches_items = []
-        sketches_mapping = {}
+        sketches_items: list[dict[str, int | None]] = []
+        sketches_mapping: dict[int, int] = {}
         for rev_frames in sketches:
             load_time: int = rev_frames["loadTime"]
             if load_time > last_load_time:
@@ -411,7 +436,7 @@ def pull_comment_from_syncsketch(
                 "id": frame_id,
             })
 
-        matching_activity = None
+        matching_activity: dict[str, Any] | None = None
         for activity in ayon_sketch_activities:
             syncsketch_meta = activity["activityData"]["syncsketch"]
             load_time_by_frame_id = {
@@ -446,7 +471,7 @@ def pull_comment_from_syncsketch(
             )
             continue
 
-        file_ids = set()
+        file_ids: set[str] = set()
         for image in sketches_data:
             url = image["url"]
             with urllib.request.urlopen(url) as response:
@@ -462,7 +487,7 @@ def pull_comment_from_syncsketch(
                 stream,
                 filename,
             )
-            file_id = response.json()["id"]
+            file_id: str = response.json()["id"]
             file_ids.add(file_id)
 
         sketch_count = len(sketches_mapping) + 1
