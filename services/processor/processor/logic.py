@@ -264,8 +264,8 @@ def pull_comment_from_syncsketch(
     if not mapped_items:
         raise SyncError(
             f"Failed to find any items in SyncSketch review session '{label}'"
-            f" that are mapped to list '{list_id}' in project '{project_name}'."
-            " Nothing to pull from SyncSketch."
+            f" that are mapped to list '{list_id}' in project"
+            f" '{project_name}'. Nothing to pull from SyncSketch."
         )
 
     activities_by_entity_id = {
