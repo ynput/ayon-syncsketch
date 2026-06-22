@@ -4,6 +4,10 @@ $current_dir = Get-Location
 $script_dir_rel = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 $script_dir = (Get-Item $script_dir_rel).FullName
 
+$RESULT = Invoke-Expression -Command "python '$($script_dir)/helper.py' all"
+$IMAGE_FULL_NAME, $BASE_NAME, $IMAGE_VERSION, $ADDON_VERSION = $RESULT.split("|")
+$BASH_CONTAINER_NAME = "$($BASE_NAME)-bash-$($IMAGE_VERSION)"
+
 $IMAGE_NAME = "ynput/ayon-syncsketch-processor"
 $ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../../package.py'));exec(f.read(),content);f.close();print(content['version'])"""
 $IMAGE_FULL_NAME = "$($IMAGE_NAME):$($ADDON_VERSION)"
@@ -25,6 +29,7 @@ function defaultfunc {
   Write-Host "  clean    Remove docker image"
   Write-Host "  dist     Publish docker image to docker hub"
   Write-Host "  dev      Run docker (for development purposes)"
+  Write-Host "  bash     Run bash in docker image (for development purposes)"
 }
 
 function build {
@@ -40,15 +45,37 @@ function dist {
   docker push "$IMAGE_FULL_NAME"
 }
 
+function load-env {
+  $env_path = "$($script_dir)/.env"
+  if (Test-Path $env_path) {
+    Get-Content $env_path `
+    | foreach {
+      $name, $value = $_.split("=")
+      if (-not([string]::IsNullOrWhiteSpace($name) -or $name.Contains("#"))) {
+        Set-Content env:\$name $value
+      }
+    }
+  }
+}
+
 function dev {
+  load-env
   & docker run --rm -ti `
-    -v "$($current_dir):/service:Z"`
-    --env-file "$($current_dir)/.env" `
+    -v "$($script_dir):/service" `
+    --hostname syncsketch `
+    --env AYON_API_KEY=$env:AYON_API_KEY `
+    --env AYON_SERVER_URL=$env:AYON_SERVER_URL `
+    --env AYON_ADDON_NAME=hibob `
+    --env AYON_ADDON_VERSION=$ADDON_VERSION `
     --attach=stdin `
     --attach=stdout `
     --attach=stderr `
     --network=host `
-    "$($IMAGE_FULL_NAME)" python -m processor
+    "$IMAGE_FULL_NAME" python -m processor
+}
+
+function bash {
+  & docker run --name "$($BASH_CONTAINER_NAME)" --rm -it --entrypoint /bin/bash "$($IMAGE_FULL_NAME)"
 }
 
 function main {
@@ -60,6 +87,8 @@ function main {
     dev
   } elseif ($FunctionName -eq "dist") {
     dist
+  } elseif ($FunctionName -eq "bash") {
+    bash
   } elseif ($null -eq $FunctionName) {
     defaultfunc
   } else {

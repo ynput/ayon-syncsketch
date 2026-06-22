@@ -2,6 +2,11 @@ name: ayon-syncsketch-services
 services:
   processor:
     container_name: processor
-    image: ynput/ayon-syncsketch-processor:0.1.2-dev.1
+    image: ynput/ayon-syncsketch-processor:1.0.0
     restart: unless-stopped
     env_file: .env
+    environment:
+      - "AYON_SERVER_URL=${AYON_SERVER_URL}"
+      - "AYON_API_KEY=${AYON_API_KEY}"
+      - "AYON_ADDON_VERSION=${AYON_ADDON_VERSION}"
+      - "AYON_ADDON_NAME=syncsketch"

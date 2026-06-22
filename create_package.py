@@ -27,6 +27,7 @@ import re
 import io
 import shutil
 import platform
+from pathlib import Path
 import argparse
 import logging
 import collections
@@ -40,7 +41,8 @@ FileMapping = Tuple[Union[str, io.BytesIO], str]
 ADDON_NAME: str = package.name
 ADDON_VERSION: str = package.version
 ADDON_CLIENT_DIR: Union[str, None] = getattr(package, "client_dir", None)
-COMMON_DIR_NAME: str = "syncsketch_common"
+SERVICE_IMAGE: str = package.services["processor"]["image"]
+SERVICE_IMAGE_NAME, SERVICE_IMAGE_VERSION = SERVICE_IMAGE.split(":")
 
 CURRENT_ROOT: str = os.path.dirname(os.path.abspath(__file__))
 SERVER_ROOT: str = os.path.join(CURRENT_ROOT, "server")
@@ -50,7 +52,6 @@ DST_DIST_DIR: str = os.path.join("frontend", "dist")
 PRIVATE_ROOT: str = os.path.join(CURRENT_ROOT, "private")
 PUBLIC_ROOT: str = os.path.join(CURRENT_ROOT, "public")
 CLIENT_ROOT: str = os.path.join(CURRENT_ROOT, "client")
-COMMON_DIR_ROOT: str = os.path.join(CURRENT_ROOT, COMMON_DIR_NAME)
 
 VERSION_PY_CONTENT = f'''# -*- coding: utf-8 -*-
 """Package declaring AYON addon '{ADDON_NAME}' version."""
@@ -417,6 +418,36 @@ def create_addon_package(
                 zipf.write(src_file, dst_subpath)
 
     log.info("Package created")
+
+
+def update_service_version():
+    """Update service version in package.py file."""
+    service_dir = Path(CURRENT_ROOT) / "services" / "processor"
+    # docker-compose.yaml
+    docker_compose_path = service_dir / "docker-compose.yml"
+    new_lines = []
+    with open(docker_compose_path, "r") as stream:
+        for line in stream.readlines():
+            if SERVICE_IMAGE_NAME in line:
+                beginning, _ = line.split("image:", 1)
+                line = f"{beginning}image: {SERVICE_IMAGE}\n"
+            new_lines.append(line)
+
+    docker_compose_path.write_text("".join(new_lines))
+
+    # pyproject.toml
+    pyproject_path = service_dir / "pyproject.toml"
+    new_lines = []
+    version_found = False
+    with open(pyproject_path, "r") as stream:
+        for line in stream.readlines():
+            if not version_found and line.startswith("version"):
+                version_found = True
+                line = f"version = \"{SERVICE_IMAGE_VERSION}\"\n"
+
+            new_lines.append(line)
+
+    pyproject_path.write_text("".join(new_lines))
 
 
 def main(

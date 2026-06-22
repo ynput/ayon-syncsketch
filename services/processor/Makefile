@@ -1,28 +1,35 @@
-include .env
-VERSION=$(shell python -c "import os;import sys;content={};f=open('$(CURDIR)/../../../package.py');exec(f.read(),content);f.close();print(content['version'])")
-IMAGE := ynput/ayon-syncsketch-processor:$(VERSION)
+ENVFILE = .env
+ENVFILE_EXAMPLE = example_env
+
+# Create the .env file if not exit.
+ifeq ("$(wildcard $(ENVFILE))","")
+   $(shell cp $(ENVFILE_EXAMPLE) $(ENVFILE))
+endif
+
+ADDON_VERSION=$(shell python "$(CURDIR)/helper.py" addon-version)
+IMAGE=$(shell python "$(CURDIR)/helper.py" image)
+BASE_NAME := $(shell python "$(CURDIR)/helper.py" image-base)
+IMAGE_VERSION := $(shell python "$(CURDIR)/helper.py" image-version)
+BASH_CONTAINER_NAME := $(BASE_NAME)-bash-$(IMAGE_VERSION)
 
 build:
 	docker build -t $(IMAGE) .
 
-clean:
-	if docker images | grep $(IMAGE); then \
-		docker rmi $(IMAGE); \
-	fi
+dist:
+	docker push $(IMAGE)
 
-clean-build: clean
-	docker build --no-cache -t $(IMAGE) .
+clean:
+	docker rmi $(IMAGE)
 
 dev:
 	docker run --rm -ti \
-		-v $(CURDIR):/service:Z \
-		--env-file .env \
-		--attach=stdin \
-		--attach=stdout \
-		--attach=stderr \
-		--network=host \
+		-v $(CURDIR):/service \
+		--hostname hibobsync \
+		--env AYON_API_KEY=${AYON_API_KEY} \
+		--env AYON_SERVER_URL=${AYON_SERVER_URL} \
+		--env AYON_ADDON_NAME=hibob \
+		--env AYON_ADDON_VERSION=$(ADDON_VERSION) \
 		$(IMAGE) python -m processor
 
-
-shell:
-	docker run --rm -ti --env-file .env --network=host -v $(CURDIR):/service:Z $(IMAGE) /bin/sh
+bash:
+	docker run --name $(BASH_CONTAINER_NAME) --rm -it --entrypoint /bin/bash $(IMAGE)

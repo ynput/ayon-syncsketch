@@ -4,9 +4,8 @@ name = "syncsketch"
 title = "SyncSketch"
 version = "0.3.0+dev"
 
-# TODO: need to make sure image is published to docker hub
 services = {
-    "processor": {"image": f"ynput/ayon-syncsketch-processor:{version}"}
+    "processor": {"image": "ynput/ayon-syncsketch-processor:1.0.0"}
 }
 
 ayon_required_addons = {

@@ -3,7 +3,6 @@ ENV PYTHONUNBUFFERED=1
 
 RUN mkdir /service
 COPY ./processor /service/processor
-COPY ./ftrack_common /service/ftrack_common
 COPY ./pyproject.toml /service/pyproject.toml
 WORKDIR /service
 
