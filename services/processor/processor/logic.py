@@ -169,14 +169,6 @@ def push_review_to_syncsketch(
         )
 
 
-@contextmanager
-def _fake_as_username(username):
-    try:
-        yield
-    finally:
-        pass
-
-
 def pull_comment_from_syncsketch(
     event: dict[str, Any],
     credentials: SyncsketchConfig,
@@ -296,10 +288,7 @@ def pull_comment_from_syncsketch(
         email = email.lower()
         ayon_users_by_email[email] = user
 
-    as_username_func = _fake_as_username
-    if ayon_api.is_service_user():
-        con = ayon_api.get_server_api_connection()
-        as_username_func = con.as_username
+    con = ayon_api.get_server_api_connection()
 
     ayon_entity_type = "version"
     for sketch_item, ayon_item in mapped_items:
@@ -316,7 +305,7 @@ def pull_comment_from_syncsketch(
             if syncsketch_meta["type"] == "comment":
                 syncsketch_id = syncsketch_meta["id"]
                 ayon_activities_by_sketch_id[syncsketch_id] = activity
-                
+
             elif syncsketch_meta["type"] == "sketch":
                 ayon_sketch_activities.append(activity)
 
@@ -339,11 +328,7 @@ def pull_comment_from_syncsketch(
             frame: int | None = frame_info["frame"]
             text: str = frame_info["text"]
 
-            as_username = as_username_func
-            ayon_username = ayon_users_by_email.get(sketch_email)
-            if not ayon_username:
-                as_username = _fake_as_username
-
+            ayon_username: str | None = ayon_users_by_email.get(sketch_email)
             ayon_text = text
             if "@" in ayon_text:
                 for email, user in sketch_users_by_email.items():
@@ -372,7 +357,9 @@ def pull_comment_from_syncsketch(
                 syncsketch_meta["text"] = text
                 syncsketch_meta["frame"] = frame
 
-                with as_username(ayon_username):
+                with con.as_username(
+                    ayon_username, ignore_service_error=True
+                ):
                     ayon_api.update_activity(
                         project_name,
                         ayon_activity["id"],
@@ -389,7 +376,9 @@ def pull_comment_from_syncsketch(
                 "type": frame_type,
             }
             dt_object = datetime.fromtimestamp(frame_info["loadTime"])
-            with as_username(ayon_username):
+            with con.as_username(
+                ayon_username, ignore_service_error=True
+            ):
                 ayon_api.create_activity(
                     project_name,
                     ayon_entity_id,
