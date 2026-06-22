@@ -79,7 +79,7 @@ class SyncsketchAddon(BaseServerAddon):
 
         if not valid_ids:
             return await executor.get_simple_response(
-                f"Selection does not contain version lists.",
+                "Selection does not contain version lists.",
                 success=False,
             )
 
