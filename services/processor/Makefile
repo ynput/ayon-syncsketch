@@ -24,10 +24,10 @@ clean:
 dev:
 	docker run --rm -ti \
 		-v $(CURDIR):/service \
-		--hostname hibobsync \
+		--hostname syncsketch \
 		--env AYON_API_KEY=${AYON_API_KEY} \
 		--env AYON_SERVER_URL=${AYON_SERVER_URL} \
-		--env AYON_ADDON_NAME=hibob \
+		--env AYON_ADDON_NAME=syncsketch \
 		--env AYON_ADDON_VERSION=$(ADDON_VERSION) \
 		$(IMAGE) python -m processor
 

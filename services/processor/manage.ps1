@@ -8,10 +8,6 @@ $RESULT = Invoke-Expression -Command "python '$($script_dir)/helper.py' all"
 $IMAGE_FULL_NAME, $BASE_NAME, $IMAGE_VERSION, $ADDON_VERSION = $RESULT.split("|")
 $BASH_CONTAINER_NAME = "$($BASE_NAME)-bash-$($IMAGE_VERSION)"
 
-$IMAGE_NAME = "ynput/ayon-syncsketch-processor"
-$ADDON_VERSION = Invoke-Expression -Command "python -c ""import os;import sys;content={};f=open(os.path.normpath(r'$($script_dir)/../../package.py'));exec(f.read(),content);f.close();print(content['version'])"""
-$IMAGE_FULL_NAME = "$($IMAGE_NAME):$($ADDON_VERSION)"
-
 function defaultfunc {
   Write-Host ""
   Write-Host "*************************"
@@ -65,7 +61,7 @@ function dev {
     --hostname syncsketch `
     --env AYON_API_KEY=$env:AYON_API_KEY `
     --env AYON_SERVER_URL=$env:AYON_SERVER_URL `
-    --env AYON_ADDON_NAME=hibob `
+    --env AYON_ADDON_NAME=syncsketch `
     --env AYON_ADDON_VERSION=$ADDON_VERSION `
     --attach=stdin `
     --attach=stdout `
