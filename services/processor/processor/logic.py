@@ -22,20 +22,27 @@ def push_review_to_syncsketch(
 ) -> None:
     """Push review to SyncSketch server."""
     project_name = event["project"]
-    list_id = event["summary"]["listId"]
+    event_summary = event["summary"]
+    list_id: str = event_summary["listId"]
+    summary_sketch_project: str | None = event_summary.get(
+        "syncsketchProject"
+    )
 
     logging.info(
-        f"Pushing review session '{list_id}' for project {project_name}"
+        f"Pushing review session '{list_id}' from AYON project {project_name}"
     )
     ayon_list_entity = ayon_api.get_entity_list_rest(project_name, list_id)
     if ayon_list_entity is None:
-        msg = f"Failed to find list '{list_id}' in project '{project_name}'."
+        msg = (
+            f"Failed to find list '{list_id}'"
+            f" in AYON project '{project_name}'."
+        )
         logging.error(msg)
         raise SyncError(msg)
 
     if ayon_list_entity["entityType"] != "version":
         msg = (
-            f"List '{list_id}' in project '{project_name}'"
+            f"List '{list_id}' in AYON project '{project_name}'"
             f" is not a version list."
         )
         logging.error(msg)
@@ -43,11 +50,22 @@ def push_review_to_syncsketch(
 
     if not ayon_list_entity["items"]:
         msg = (
-            f"List '{list_id}' in project '{project_name}' is empty. "
+            f"List '{list_id}' in AYON project '{project_name}' is empty. "
             "Nothing to push to SyncSketch."
         )
         logging.error(msg)
         raise SyncError(msg)
+
+    syncketch_meta = ayon_list_entity["data"].get("syncsketch") or {}
+    sketch_review_id: int | None = syncketch_meta.get("id")
+    sketch_meta_project: str | None = syncketch_meta.get("project")
+    sketch_project: str
+    if sketch_meta_project:
+        sketch_project = sketch_meta_project
+    elif summary_sketch_project:
+        sketch_project = summary_sketch_project
+    else:
+        sketch_project = project_name
 
     syncsketch_api = SyncSketchAPI(
         username=credentials.username,
@@ -56,33 +74,72 @@ def push_review_to_syncsketch(
     )
     project_id: int | None = None
     for project in syncsketch_api.get_projects(fields={"id", "name"}):
-        if project["name"] == project_name:
+        if project["name"].lower() == sketch_project.lower():
             project_id = project["id"]
+            sketch_project = project["name"]
             break
 
     if project_id is None:
-        msg = f"Failed to find SyncSketch project with name '{project_name}'"
+        msg = f"Failed to find SyncSketch project '{sketch_project}'"
+        # Auto-fix data in AYON if the project stored on the entity does
+        #   not exist in syncsketch.
+        # NOTE Right now there is no way how to fix this using UI.
+        if sketch_meta_project:
+            syncketch_meta.pop("project", None)
+            ayon_api.update_entity_list(
+                project_name,
+                list_id,
+                data={"syncsketch": syncketch_meta},
+            )
+
         logging.error(msg)
         raise SyncError(msg)
 
     label = ayon_list_entity["label"]
     sketch_review: dict[str, Any] = {}
+    sketch_review_by_name: dict[str, Any] | None = None
     for review in syncsketch_api.get_reviews(project_id):
-        if review["name"] == label:
+        if review["id"] == sketch_review_id:
             sketch_review = review
-            sketch_review["items"] = syncsketch_api.get_review_items(
-                review["id"]
-            )
             break
 
-    if not sketch_review:
+        if review["name"] == label:
+            sketch_review_by_name = review
+
+    if not sketch_review and sketch_review_by_name:
+        sketch_review = sketch_review_by_name
+
+    if sketch_review:
+        # Fetch items of the review item
+        sketch_review["items"] = syncsketch_api.get_review_items(
+            sketch_review["id"]
+        )
+
+    else:
         sketch_review = syncsketch_api.create_review(project_id, label)
         logging.info(
             f"Created review session '{label}'"
-            f" in SyncSketch project '{project_name}'"
+            f" in SyncSketch project '{sketch_project}'"
         )
 
     sketch_review_id = sketch_review["id"]
+
+    meta_changed = False
+    for key, old_value, new_value in (
+        ("project", syncketch_meta.get("project"), sketch_project),
+        ("id", syncketch_meta.get("id"), sketch_review_id),
+    ):
+        if old_value != new_value:
+            syncketch_meta[key] = new_value
+            meta_changed = True
+
+    if meta_changed:
+        ayon_api.update_entity_list(
+            project_name,
+            list_id,
+            data={"syncsketch": syncketch_meta},
+        )
+
     # TODO this logic requires
     #   https://github.com/ynput/ayon-backend/issues/985
     # - update of the 'syncsketch_id' field
@@ -95,8 +152,8 @@ def push_review_to_syncsketch(
 
     if not new_items:
         logging.info(
-            f"Review session '{label}' in SyncSketch project '{project_name}'"
-            " is up to date. Nothing to push."
+            f"Review session '{label}' in SyncSketch project"
+            f" '{sketch_project}' is up to date. Nothing to push."
         )
         return
 
@@ -144,7 +201,7 @@ def push_review_to_syncsketch(
             logging.info(
                 "Added item by downloading it from AYON and uploading to"
                 f" review session '{label}' in SyncSketch project"
-                f" '{project_name}'"
+                f" '{sketch_project}'"
             )
 
         else:
@@ -156,7 +213,7 @@ def push_review_to_syncsketch(
             )
             logging.info(
                 f"Added item with url '{media_url}' to review session"
-                f" '{label}' in SyncSketch project '{project_name}'"
+                f" '{label}' in SyncSketch project '{sketch_project}'"
             )
 
         ayon_api.update_entity_list_item(
@@ -201,6 +258,16 @@ def pull_comment_from_syncsketch(
             "Nothing to pull from SyncSketch."
         )
 
+    syncketch_meta = ayon_list_entity["data"].get("syncsketch") or {}
+    sketch_review_id: int | None = syncketch_meta.get("id")
+    sketch_meta_project: str | None = syncketch_meta.get("project")
+
+    sketch_project: str
+    if sketch_meta_project:
+        sketch_project = sketch_meta_project
+    else:
+        sketch_project = project_name
+
     ayon_items_by_syncsketch_id: dict[int, dict[str, Any]] = {}
     for item in ayon_list_entity["items"]:
         syncsketch_id = item["data"].get("syncsketch_id")
@@ -222,32 +289,40 @@ def pull_comment_from_syncsketch(
     )
     project_id: int | None = None
     for project in syncsketch_api.get_projects(fields={"id", "name"}):
-        if project["name"] == project_name:
+        if project["name"].lower() == sketch_project.lower():
             project_id = project["id"]
             break
 
     if project_id is None:
         raise SyncError(
-            f"Failed to find SyncSketch project with name '{project_name}'"
+            f"Failed to find SyncSketch project '{sketch_project}'"
         )
 
     label: str = ayon_list_entity["label"]
     sketch_review: dict[str, Any] = {}
+    sketch_review_by_name: dict[str, Any] | None = None
     for review in syncsketch_api.get_reviews(project_id):
-        if review["name"] == label:
+        if review["id"] == sketch_review_id:
             sketch_review = review
-            # Items are not included when 'get_reviews' is called
-            # - it can be included in the review, but the payload would
-            #   be huge and we don't need it for the all reviews
-            sketch_review["items"] = syncsketch_api.get_review_items(
-                review["id"]
-            )
             break
+        if review["name"] == label:
+            sketch_review_by_name = review
+
+    if not sketch_review and sketch_review_by_name:
+        sketch_review = sketch_review_by_name
+
+    if sketch_review:
+        # Items are not included when 'get_reviews' is called
+        # - it can be included in the review, but the payload would
+        #   be huge and we don't need it for the all reviews
+        sketch_review["items"] = syncsketch_api.get_review_items(
+            sketch_review["id"]
+        )
 
     if not sketch_review:
         raise SyncError(
             f"Failed to find SyncSketch review session with name '{label}'"
-            f" in project '{project_name}'"
+            f" in project '{sketch_project}'"
         )
 
     # Prepare mapping of AYON items to SyncSketch items
@@ -264,7 +339,7 @@ def pull_comment_from_syncsketch(
     if not mapped_items:
         raise SyncError(
             f"Failed to find any items in SyncSketch review session '{label}'"
-            f" that are mapped to list '{list_id}' in project"
+            f" that are mapped to list '{list_id}' in AYON project"
             f" '{project_name}'. Nothing to pull from SyncSketch."
         )
 
@@ -467,7 +542,7 @@ def pull_comment_from_syncsketch(
         if sketches_data is None:
             logging.error(
                 f"Failed to sync sketch frames for SyncSketch review"
-                f" '{sketch_review_id}' in project '{project_name}'"
+                f" '{sketch_review_id}' in project '{sketch_project}'"
             )
             continue
 
