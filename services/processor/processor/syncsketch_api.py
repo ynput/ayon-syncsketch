@@ -57,6 +57,8 @@ class SyncSketchAPI:
             meta = data["meta"]
             if not meta["next"]:
                 break
+            params["offset"] = meta["offset"] + meta["limit"]
+
         return output
 
     def get_projects(
@@ -266,6 +268,7 @@ class SyncSketchAPI:
             if not meta["next"]:
                 break
             params["offset"] = meta["offset"] + meta["limit"]
+
         return output
 
     def prepare_review_item_sketches(
