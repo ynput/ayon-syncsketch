@@ -113,7 +113,7 @@ class SyncsketchAddon(BaseServerAddon):
                 "Push to SyncSketch can take a while."
                 " Please wait until the action is finished."
             )
-        elif executor.identifier == "syncsketch.push":
+        elif executor.identifier == "syncsketch.pull":
             # Pull does not require a project name as each list either has it
             #   filled or current project should be used.
             sketch_project_name = None
