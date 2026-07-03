@@ -67,12 +67,3 @@ class SyncsketchSettings(BaseSettingsModel):
         default_factory=SyncModel,
         title="Sync options",
     )
-
-
-DEFAULT_VALUES = {
-    "syncsketch_server_config": {
-        "api_key": "",
-        "username": "",
-        "server_url": "",
-    },
-}

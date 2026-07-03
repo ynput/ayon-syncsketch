@@ -11,7 +11,7 @@ from ayon_server.entity_lists import EntityList
 from ayon_server.events import dispatch_event
 from ayon_server.forms import SimpleForm, FormSelectOption
 
-from .settings import SyncsketchSettings, DEFAULT_VALUES
+from .settings import SyncsketchSettings
 
 
 @dataclass
@@ -23,10 +23,6 @@ class ActionProjectSelection:
 
 class SyncsketchAddon(BaseServerAddon):
     settings_model: Type[SyncsketchSettings] = SyncsketchSettings
-
-    async def get_default_settings(self):
-        settings_model_cls = self.get_settings_model()
-        return settings_model_cls(**DEFAULT_VALUES)
 
     async def get_simple_actions(
         self,
