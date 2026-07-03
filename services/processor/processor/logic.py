@@ -383,7 +383,7 @@ def pull_comment_from_syncsketch(
     for sketch_item, ayon_item in mapped_items:
         sketch_item_id: int = sketch_item["id"]
         ayon_entity_id: str = ayon_item["entityId"]
-        ayon_activities_by_sketch_id: dict = {int: dict[str, Any]}
+        ayon_activities_by_sketch_id: dict[int, dict[str, Any]] = {}
         ayon_sketch_activities: list[dict[str, Any]] = []
         for activity in activities_by_entity_id[ayon_entity_id]:
             syncsketch_meta = activity["activityData"].get("syncsketch")

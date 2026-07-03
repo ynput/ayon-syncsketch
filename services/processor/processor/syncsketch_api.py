@@ -261,7 +261,7 @@ class SyncSketchAPI:
         while True:
             data = self._do_get(
                 "frame",
-                params=dict(item__id=item_id),
+                params=params,
             )
             output.extend(data["objects"])
             meta = data["meta"]
