@@ -9,4 +9,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["processor"]
+packages = ["processor"]
