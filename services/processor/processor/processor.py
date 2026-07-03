@@ -55,13 +55,13 @@ def _context_has_valid_credentials() -> bool:
         logging.warning(
             "SyncSketch credentials are not set or invalid."
             " Please check settings"
-            f" of syncksketh {addon_version}."
+            f" of syncksketch {addon_version}."
         )
     elif time.time() - syncsketch.last_validation_time > 60:
         logging.warning(
             "SyncSketch credentials are still not valid."
             " Please check settings"
-            f" of syncksketh {addon_version}."
+            f" of syncksketch {addon_version}."
         )
         sleep_time = 30
 
