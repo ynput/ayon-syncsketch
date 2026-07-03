@@ -38,7 +38,7 @@ class SyncSketchAPI:
         response.raise_for_status()
 
     def get_account_info(self) -> list[dict[str, Any]]:
-        if self._session is None or self._session.closed:
+        if self._session is None:
             raise SessionClosed("Syncsketch session is closed")
 
         params = dict(
