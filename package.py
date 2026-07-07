@@ -2,7 +2,7 @@
 """Package declaring addon version."""
 name = "syncsketch"
 title = "SyncSketch"
-version = "0.4.0"
+version = "0.4.0+dev"
 
 services = {
     "processor": {"image": "ynput/ayon-syncsketch-processor:1.0.0"}
