@@ -27,6 +27,7 @@ import re
 import io
 import shutil
 import platform
+from pathlib import Path
 import argparse
 import logging
 import collections
@@ -40,7 +41,8 @@ FileMapping = Tuple[Union[str, io.BytesIO], str]
 ADDON_NAME: str = package.name
 ADDON_VERSION: str = package.version
 ADDON_CLIENT_DIR: Union[str, None] = getattr(package, "client_dir", None)
-COMMON_DIR_NAME: str = "syncsketch_common"
+SERVICE_IMAGE: str = package.services["processor"]["image"]
+SERVICE_IMAGE_NAME, SERVICE_IMAGE_VERSION = SERVICE_IMAGE.split(":")
 
 CURRENT_ROOT: str = os.path.dirname(os.path.abspath(__file__))
 SERVER_ROOT: str = os.path.join(CURRENT_ROOT, "server")
@@ -50,7 +52,6 @@ DST_DIST_DIR: str = os.path.join("frontend", "dist")
 PRIVATE_ROOT: str = os.path.join(CURRENT_ROOT, "private")
 PUBLIC_ROOT: str = os.path.join(CURRENT_ROOT, "public")
 CLIENT_ROOT: str = os.path.join(CURRENT_ROOT, "client")
-COMMON_DIR_ROOT: str = os.path.join(CURRENT_ROOT, COMMON_DIR_NAME)
 
 VERSION_PY_CONTENT = f'''# -*- coding: utf-8 -*-
 """Package declaring AYON addon '{ADDON_NAME}' version."""
@@ -217,28 +218,6 @@ def update_client_version(logger):
         stream.write(VERSION_PY_CONTENT)
 
 
-def update_service_version(logger):
-    docker_compose_path = os.path.join(
-        CURRENT_ROOT, "service", "docker-compose.yml"
-    )
-    with open(docker_compose_path, "r") as stream:
-        content = stream.readlines()
-
-    new_lines = []
-    sep = "image: ynput/ayon-syncsketch-processor"
-    for line in content:
-        if sep in line:
-            head, _ = line.split(sep)
-            new_line = f"{head}{sep}:{ADDON_VERSION}\n"
-            if new_line != line:
-                logger.info(f"Updating service version to {ADDON_VERSION}")
-
-        new_lines.append(line)
-
-    with open(docker_compose_path, "w") as stream:
-        stream.write("".join(new_lines))
-
-
 def build_frontend():
     yarn_executable = _get_yarn_executable()
     if yarn_executable is None:
@@ -279,10 +258,6 @@ def get_client_files_mapping() -> List[Tuple[str, str]]:
         for path, sub_path in find_files_in_subdir(client_code_dir)
     ]
 
-    for path, sub_path in find_files_in_subdir(COMMON_DIR_ROOT):
-        dst_path = "/".join((ADDON_CLIENT_DIR, "common", sub_path))
-        mapping.append((path, dst_path))
-
     license_path = os.path.join(CURRENT_ROOT, "LICENSE")
     if os.path.exists(license_path):
         mapping.append((license_path, f"{ADDON_CLIENT_DIR}/LICENSE"))
@@ -311,14 +286,6 @@ def get_base_files_mapping() -> List[FileMapping]:
     license_path = os.path.join(CURRENT_ROOT, "LICENSE")
     if os.path.exists(license_path):
         filepaths_to_copy.append((license_path, "LICENSE"))
-
-    for filename in (
-        "server_handler.py",
-        "constants.py",
-    ):
-        src_path = os.path.join(COMMON_DIR_ROOT, filename)
-        dst_path = os.path.join("server", "common", filename)
-        filepaths_to_copy.append((src_path, dst_path))
 
     # Go through server, private and public directories and find all files
     for dirpath in (SERVER_ROOT, PRIVATE_ROOT, PUBLIC_ROOT):
@@ -431,6 +398,36 @@ def create_addon_package(
     log.info("Package created")
 
 
+def update_service_version():
+    """Update service version in package.py file."""
+    service_dir = Path(CURRENT_ROOT) / "services" / "processor"
+    # docker-compose.yaml
+    docker_compose_path = service_dir / "docker-compose.yml"
+    new_lines = []
+    with open(docker_compose_path, "r") as stream:
+        for line in stream.readlines():
+            if SERVICE_IMAGE_NAME in line:
+                beginning, _ = line.split("image:", 1)
+                line = f"{beginning}image: {SERVICE_IMAGE}\n"
+            new_lines.append(line)
+
+    docker_compose_path.write_text("".join(new_lines))
+
+    # pyproject.toml
+    pyproject_path = service_dir / "pyproject.toml"
+    new_lines = []
+    version_found = False
+    with open(pyproject_path, "r") as stream:
+        for line in stream.readlines():
+            if not version_found and line.startswith("version"):
+                version_found = True
+                line = f"version = \"{SERVICE_IMAGE_VERSION}\"\n"
+
+            new_lines.append(line)
+
+    pyproject_path.write_text("".join(new_lines))
+
+
 def main(
     output_dir: Optional[str] = None,
     skip_zip: Optional[bool] = False,
@@ -452,7 +449,7 @@ def main(
             )
         update_client_version(log)
 
-    update_service_version(log)
+    update_service_version()
 
     if only_client:
         if not has_client_code:

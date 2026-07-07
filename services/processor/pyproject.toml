@@ -1,0 +1,12 @@
+[project]
+name = "syncsketch-processor"
+version = "1.0.0"
+description = "SyncSketch Integration for AYON"
+authors = [{name = "Ynput s.r.o.", email ="info@ynput.io"}]
+dependencies = [
+    "platformdirs",
+    "ayon-python-api==1.2.21"
+]
+
+[tool.setuptools]
+packages = ["processor"]

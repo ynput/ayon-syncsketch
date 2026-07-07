@@ -1,103 +1,69 @@
-from pydantic import validator
-
 from ayon_server.settings import (
     BaseSettingsModel,
     SettingsField,
-    ensure_unique_names
 )
 from ayon_server.settings.enum import secrets_enum
 
-from .publish_plugins import (
-    PublishPluginsModel,
-    DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS
-)
+
+class ServerConfigModel(BaseSettingsModel):
+    username: str = SettingsField(
+        "",
+        enum_resolver=secrets_enum,
+        title="API Username",
+    )
+    api_key: str = SettingsField(
+        "",
+        enum_resolver=secrets_enum,
+        title="API Key",
+    )
+    server_url: str = SettingsField(
+        "",
+        title="SyncSketch Server URL",
+        placeholder="https://www.syncsketch.com",
+    )
 
 
-class StatusesMapping(BaseSettingsModel):
-    name: str = SettingsField(
-        title="SyncSketch Status")
-    ftrack_status: str = SettingsField(
-        title="Frack Status")
+def _project_mapping_enum():
+    return [
+        {"value": "match", "label": "Match Project Name"},
+        {"value": "selection", "label": "Select from list"},
+    ]
 
 
-class ServerListSubmodel(BaseSettingsModel):
-    url: str = SettingsField(
-        title="SyncSketch Server URL")
-    auth_user: str = SettingsField(
-        enum_resolver=secrets_enum,
-        title="Auth Username")
-    auth_token: str = SettingsField(
-        enum_resolver=secrets_enum,
-        title="Auth Token")
-    account_id: str = SettingsField(
-        enum_resolver=secrets_enum,
-        title="Account ID")
-    ftrack_url: str = SettingsField(
-        title="Ftrack Server URL")
-    ftrack_api_key: str = SettingsField(
-        enum_resolver=secrets_enum,
-        title="Ftrack API Key")
-    ftrack_username: str = SettingsField(
-        enum_resolver=secrets_enum,
-        title="Ftrack Username")
+class SyncProjectSelection(BaseSettingsModel):
+    _layout = "expanded"
+    project_names: list[str] = SettingsField(
+        default_factory=list,
+        title="SyncSketch Project Names",
+        description="SyncSketch projects to select from.",
+    )
+    allow_custom_name: bool = SettingsField(
+        False,
+        title="Allow custom project name",
+        description="Allow user to enter a custom project name.",
+    )
+
+
+class SyncModel(BaseSettingsModel):
+    _isGroup = True
+    project_mapping: str = SettingsField(
+        "match",
+        title="Project Mapping",
+        description="Mapping between AYON project and SyncSketch project.",
+        enum_resolver=_project_mapping_enum,
+        conditional_enum=True,
+    )
+    selection: SyncProjectSelection = SettingsField(
+        default_factory=SyncProjectSelection,
+    )
 
 
 class SyncsketchSettings(BaseSettingsModel):
-
-    syncsketch_server_config:  ServerListSubmodel = SettingsField(
-        default_factory=ServerListSubmodel,
+    config: ServerConfigModel = SettingsField(
+        default_factory=ServerConfigModel,
         title="SyncSketch server config",
-        scope=["studio"]
     )
-    statuses_mapping: list[StatusesMapping] = SettingsField(
-        default_factory=list,
-        title="Statuses Mapping",
-        description="Map Ftrack and SyncSketch statuses.",
-        scope=["studio"]
+    sync: SyncModel = SettingsField(
+        default_factory=SyncModel,
+        title="Sync options",
     )
-    publish: PublishPluginsModel = SettingsField(
-        default_factory=PublishPluginsModel,
-        title="Publish Plugins",
-    )
-
-    @validator("statuses_mapping")
-    def ensure_unique_names(cls, value):
-        """Ensure name fields within the lists have unique names."""
-        ensure_unique_names(value)
-        return value
-
-
-DEFAULT_VALUES = {
-    "syncsketch_server_config": {
-        "url": "https://www.syncsketch.com",
-        "auth_token": "",
-        "auth_user": "",
-        "account_id": "",
-        "ftrack_url": "",
-        "ftrack_api_key": "",
-        "ftrack_username": "",
-    },
-    "statuses_mapping": [
-        {
-            "name": "Reviewed",
-            "ftrack_status": "Change Requested",
-        },
-        {
-            "name": "For Review",
-            "ftrack_status": "Pending Review",
-        },
-        {
-            "name": "In Progress",
-            "ftrack_status": "Pending Review",
-        },
-        {
-            "name": "Approved",
-            "ftrack_status": "Approved",
-        },
-        {
-            "name": "On Hold",
-            "ftrack_status": "Completed",
-        }
-    ],
-    "publish": DEFAULT_SYNCSKETCH_PLUGINS_SETTINGS
-}

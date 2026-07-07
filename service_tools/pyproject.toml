@@ -1,0 +1,9 @@
+[project]
+name = "syncsketch-services"
+version = "1.0.0"
+description = "Tools for developing/testing syncsketch services"
+authors = [{name = "Ynput s.r.o.", email ="info@ynput.io"}]
+requires-python = ">=3.11"
+dependencies = [
+    "ayon-python-api>=1.2.21",
+]
