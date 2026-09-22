@@ -136,7 +136,7 @@ def listen_for_events():
                     status="failed",
                     description=(
                         "SyncSketch credentials are not set or invalid."
-                        " Please check settings of SynckSketch addon."
+                        " Please check settings of SyncSketch addon."
                     ),
                     payload={"fail_reason": "invalid_credentials"},
                 )
