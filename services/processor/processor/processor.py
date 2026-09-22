@@ -106,7 +106,7 @@ def _revalidate_events():
             event["id"],
             status="pending",
             description=description,
-            summary={"fail_reason": None},
+            payload={"fail_reason": None},
         )
 
 
@@ -138,7 +138,7 @@ def listen_for_events():
                         "SyncSketch credentials are not set or invalid."
                         " Please check settings of SynckSketch addon."
                     ),
-                    summary={"fail_reason": "invalid_credentials"},
+                    payload={"fail_reason": "invalid_credentials"},
                 )
             continue
 
@@ -173,6 +173,8 @@ def listen_for_events():
             description = str(exc)
             logging.error(description)
             new_status = "failed"
+            payload = job_event["payload"]
+            payload["fail_reason"] = "sync_error"
 
         except Exception:
             logging.exception(
@@ -184,6 +186,7 @@ def listen_for_events():
                 " Check logs for details."
             )
             payload = job_event["payload"]
+            payload["fail_reason"] = "unexpected_error"
             payload["traceback"] = traceback.format_exc()
 
         finally:
