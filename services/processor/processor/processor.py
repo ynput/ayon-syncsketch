@@ -78,8 +78,7 @@ def _context_has_valid_credentials() -> bool:
 
 def listen_for_events():
     while not _GlobalContext.stop_event.is_set():
-        if not _context_has_valid_credentials():
-            continue
+        has_valid_credentials = _context_has_valid_credentials()
 
         job_events = list(ayon_api.get_events(
             [
@@ -90,6 +89,19 @@ def listen_for_events():
         ))
         if not job_events:
             time.sleep(10)
+            continue
+
+        if not has_valid_credentials:
+            for event in job_events:
+                ayon_api.update_event(
+                    event["id"],
+                    status="failed",
+                    description=(
+                        "SyncSketch credentials are not set or invalid."
+                        " Please check settings of SynckSketch addon."
+                    ),
+                    summary={"fail_reason": "invalid_credentials"},
+                )
             continue
 
         first_event = job_events[0]
