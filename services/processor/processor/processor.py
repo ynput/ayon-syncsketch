@@ -98,7 +98,8 @@ def _revalidate_events():
         statuses={"failed"},
     ))
     for event in job_events:
-        if event["summary"].get("fail_reason") != "invalid_credentials":
+        fail_reason = event.get("payload", {}).get("fail_reason")
+        if fail_reason != "invalid_credentials":
             continue
 
         description = _DEFAULT_DESCRIPTIONS[event["topic"]]
