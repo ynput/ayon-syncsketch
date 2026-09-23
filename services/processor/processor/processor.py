@@ -76,10 +76,48 @@ def _context_has_valid_credentials() -> bool:
     return False
 
 
-def listen_for_events():
-    while not _GlobalContext.stop_event.is_set():
-        if not _context_has_valid_credentials():
+_DEFAULT_DESCRIPTIONS = {
+    "syncsketch.push.review": (
+        "Push to SyncSketch can take a while."
+        " Please wait until the action is finished."
+    ),
+    "syncsketch.pull.review": (
+        "Pull from SyncSketch can take a while."
+        " Please wait until the action is finished."
+    ),
+}
+
+
+def _revalidate_events():
+    """Revalidate events that were failed due to invalid credentials."""
+    job_events = list(ayon_api.get_events(
+        [
+            "syncsketch.push.review",
+            "syncsketch.pull.review",
+        ],
+        statuses={"failed"},
+    ))
+    for event in job_events:
+        fail_reason = event.get("payload", {}).get("fail_reason")
+        if fail_reason != "invalid_credentials":
             continue
+
+        description = _DEFAULT_DESCRIPTIONS[event["topic"]]
+        ayon_api.update_event(
+            event["id"],
+            status="pending",
+            description=description,
+            payload={"fail_reason": None},
+        )
+
+
+def listen_for_events():
+    had_valid_credentials = False
+    while not _GlobalContext.stop_event.is_set():
+        has_valid_credentials = _context_has_valid_credentials()
+        if has_valid_credentials and not had_valid_credentials:
+            had_valid_credentials = True
+            _revalidate_events()
 
         job_events = list(ayon_api.get_events(
             [
@@ -90,6 +128,19 @@ def listen_for_events():
         ))
         if not job_events:
             time.sleep(10)
+            continue
+
+        if not has_valid_credentials:
+            for event in job_events:
+                ayon_api.update_event(
+                    event["id"],
+                    status="failed",
+                    description=(
+                        "SyncSketch credentials are not set or invalid."
+                        " Please check settings of SyncSketch addon."
+                    ),
+                    payload={"fail_reason": "invalid_credentials"},
+                )
             continue
 
         first_event = job_events[0]
@@ -123,6 +174,8 @@ def listen_for_events():
             description = str(exc)
             logging.error(description)
             new_status = "failed"
+            payload = job_event["payload"]
+            payload["fail_reason"] = "sync_error"
 
         except Exception:
             logging.exception(
@@ -134,6 +187,7 @@ def listen_for_events():
                 " Check logs for details."
             )
             payload = job_event["payload"]
+            payload["fail_reason"] = "unexpected_error"
             payload["traceback"] = traceback.format_exc()
 
         finally:
